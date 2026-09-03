@@ -1,0 +1,30 @@
+{
+  "source": "litellm 1.93.0 main.completion, under dspy==3.3.0",
+  "litellm_version": "1.93.0",
+  "note": "The endpoint litellm's OpenAI client is constructed with, per combination of the two environment variables that name one. `OPENAI_BASE_URL` wins where both are set; `OPENAI_API_BASE` is the fallback.",
+  "cases": [
+    {
+      "environment": {},
+      "endpoint": "https://api.openai.com/v1"
+    },
+    {
+      "environment": {
+        "OPENAI_BASE_URL": "https://from-base-url.example/v1"
+      },
+      "endpoint": "https://from-base-url.example/v1"
+    },
+    {
+      "environment": {
+        "OPENAI_API_BASE": "https://from-api-base.example/v1"
+      },
+      "endpoint": "https://from-api-base.example/v1"
+    },
+    {
+      "environment": {
+        "OPENAI_BASE_URL": "https://from-base-url.example/v1",
+        "OPENAI_API_BASE": "https://from-api-base.example/v1"
+      },
+      "endpoint": "https://from-base-url.example/v1"
+    }
+  ]
+}

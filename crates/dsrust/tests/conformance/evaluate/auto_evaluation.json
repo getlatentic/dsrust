@@ -1,0 +1,481 @@
+{
+  "source": "dspy==3.3.0 evaluate/auto_evaluation.py",
+  "dspy_version": "3.3.0",
+  "note": "The four judge signatures as dspy declares them, the prompt a `ChainOfThought` over each renders, and `f1_score` over a grid that crosses both clamp arms and the zero guard.",
+  "signatures": [
+    {
+      "name": "SemanticRecallPrecision",
+      "instructions": "Compare a system's response to the ground truth to compute its recall and precision.\nIf asked to reason, enumerate key ideas in each response, and whether they are present in the other response.",
+      "inputs": [
+        {
+          "name": "question",
+          "desc": "${question}",
+          "annotation": "str"
+        },
+        {
+          "name": "ground_truth",
+          "desc": "${ground_truth}",
+          "annotation": "str"
+        },
+        {
+          "name": "system_response",
+          "desc": "${system_response}",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "recall",
+          "desc": "fraction (out of 1.0) of ground truth covered by the system response",
+          "annotation": "float"
+        },
+        {
+          "name": "precision",
+          "desc": "fraction (out of 1.0) of system response covered by the ground truth",
+          "annotation": "float"
+        }
+      ],
+      "chain_of_thought_messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str): \n2. `ground_truth` (str): \n3. `system_response` (str):\nYour output fields are:\n1. `reasoning` (str): \n2. `recall` (float): fraction (out of 1.0) of ground truth covered by the system response\n3. `precision` (float): fraction (out of 1.0) of system response covered by the ground truth\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## ground_truth ## ]]\n{ground_truth}\n\n[[ ## system_response ## ]]\n{system_response}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## recall ## ]]\n{recall}        # note: the value you produce must be a single float value\n\n[[ ## precision ## ]]\n{precision}        # note: the value you produce must be a single float value\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Compare a system's response to the ground truth to compute its recall and precision.\n        If asked to reason, enumerate key ideas in each response, and whether they are present in the other response."
+        },
+        {
+          "role": "user",
+          "content": "[[ ## question ## ]]\nWhat is the capital of France?\n\n[[ ## ground_truth ## ]]\nParis, the capital since 987.\n\n[[ ## system_response ## ]]\nParis.\n\nRespond with the corresponding output fields, starting with the field `[[ ## reasoning ## ]]`, then `[[ ## recall ## ]]` (must be formatted as a valid Python float), then `[[ ## precision ## ]]` (must be formatted as a valid Python float), and then ending with the marker for `[[ ## completed ## ]]`."
+        }
+      ]
+    },
+    {
+      "name": "DecompositionalSemanticRecallPrecision",
+      "instructions": "Compare a system's response to the ground truth to compute recall and precision of key ideas.\nYou will first enumerate key ideas in each response, discuss their overlap, and then report recall and precision.",
+      "inputs": [
+        {
+          "name": "question",
+          "desc": "${question}",
+          "annotation": "str"
+        },
+        {
+          "name": "ground_truth",
+          "desc": "${ground_truth}",
+          "annotation": "str"
+        },
+        {
+          "name": "system_response",
+          "desc": "${system_response}",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ground_truth_key_ideas",
+          "desc": "enumeration of key ideas in the ground truth",
+          "annotation": "str"
+        },
+        {
+          "name": "system_response_key_ideas",
+          "desc": "enumeration of key ideas in the system response",
+          "annotation": "str"
+        },
+        {
+          "name": "discussion",
+          "desc": "discussion of the overlap between ground truth and system response",
+          "annotation": "str"
+        },
+        {
+          "name": "recall",
+          "desc": "fraction (out of 1.0) of ground truth covered by the system response",
+          "annotation": "float"
+        },
+        {
+          "name": "precision",
+          "desc": "fraction (out of 1.0) of system response covered by the ground truth",
+          "annotation": "float"
+        }
+      ],
+      "chain_of_thought_messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str): \n2. `ground_truth` (str): \n3. `system_response` (str):\nYour output fields are:\n1. `reasoning` (str): \n2. `ground_truth_key_ideas` (str): enumeration of key ideas in the ground truth\n3. `system_response_key_ideas` (str): enumeration of key ideas in the system response\n4. `discussion` (str): discussion of the overlap between ground truth and system response\n5. `recall` (float): fraction (out of 1.0) of ground truth covered by the system response\n6. `precision` (float): fraction (out of 1.0) of system response covered by the ground truth\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## ground_truth ## ]]\n{ground_truth}\n\n[[ ## system_response ## ]]\n{system_response}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## ground_truth_key_ideas ## ]]\n{ground_truth_key_ideas}\n\n[[ ## system_response_key_ideas ## ]]\n{system_response_key_ideas}\n\n[[ ## discussion ## ]]\n{discussion}\n\n[[ ## recall ## ]]\n{recall}        # note: the value you produce must be a single float value\n\n[[ ## precision ## ]]\n{precision}        # note: the value you produce must be a single float value\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Compare a system's response to the ground truth to compute recall and precision of key ideas.\n        You will first enumerate key ideas in each response, discuss their overlap, and then report recall and precision."
+        },
+        {
+          "role": "user",
+          "content": "[[ ## question ## ]]\nWhat is the capital of France?\n\n[[ ## ground_truth ## ]]\nParis, the capital since 987.\n\n[[ ## system_response ## ]]\nParis.\n\nRespond with the corresponding output fields, starting with the field `[[ ## reasoning ## ]]`, then `[[ ## ground_truth_key_ideas ## ]]`, then `[[ ## system_response_key_ideas ## ]]`, then `[[ ## discussion ## ]]`, then `[[ ## recall ## ]]` (must be formatted as a valid Python float), then `[[ ## precision ## ]]` (must be formatted as a valid Python float), and then ending with the marker for `[[ ## completed ## ]]`."
+        }
+      ]
+    },
+    {
+      "name": "AnswerCompleteness",
+      "instructions": "Estimate the completeness of a system's responses, against the ground truth.\nYou will first enumerate key ideas in each response, discuss their overlap, and then report completeness.",
+      "inputs": [
+        {
+          "name": "question",
+          "desc": "${question}",
+          "annotation": "str"
+        },
+        {
+          "name": "ground_truth",
+          "desc": "${ground_truth}",
+          "annotation": "str"
+        },
+        {
+          "name": "system_response",
+          "desc": "${system_response}",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ground_truth_key_ideas",
+          "desc": "enumeration of key ideas in the ground truth",
+          "annotation": "str"
+        },
+        {
+          "name": "system_response_key_ideas",
+          "desc": "enumeration of key ideas in the system response",
+          "annotation": "str"
+        },
+        {
+          "name": "discussion",
+          "desc": "discussion of the overlap between ground truth and system response",
+          "annotation": "str"
+        },
+        {
+          "name": "completeness",
+          "desc": "fraction (out of 1.0) of ground truth covered by the system response",
+          "annotation": "float"
+        }
+      ],
+      "chain_of_thought_messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str): \n2. `ground_truth` (str): \n3. `system_response` (str):\nYour output fields are:\n1. `reasoning` (str): \n2. `ground_truth_key_ideas` (str): enumeration of key ideas in the ground truth\n3. `system_response_key_ideas` (str): enumeration of key ideas in the system response\n4. `discussion` (str): discussion of the overlap between ground truth and system response\n5. `completeness` (float): fraction (out of 1.0) of ground truth covered by the system response\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## ground_truth ## ]]\n{ground_truth}\n\n[[ ## system_response ## ]]\n{system_response}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## ground_truth_key_ideas ## ]]\n{ground_truth_key_ideas}\n\n[[ ## system_response_key_ideas ## ]]\n{system_response_key_ideas}\n\n[[ ## discussion ## ]]\n{discussion}\n\n[[ ## completeness ## ]]\n{completeness}        # note: the value you produce must be a single float value\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Estimate the completeness of a system's responses, against the ground truth.\n        You will first enumerate key ideas in each response, discuss their overlap, and then report completeness."
+        },
+        {
+          "role": "user",
+          "content": "[[ ## question ## ]]\nWhat is the capital of France?\n\n[[ ## ground_truth ## ]]\nParis, the capital since 987.\n\n[[ ## system_response ## ]]\nParis.\n\nRespond with the corresponding output fields, starting with the field `[[ ## reasoning ## ]]`, then `[[ ## ground_truth_key_ideas ## ]]`, then `[[ ## system_response_key_ideas ## ]]`, then `[[ ## discussion ## ]]`, then `[[ ## completeness ## ]]` (must be formatted as a valid Python float), and then ending with the marker for `[[ ## completed ## ]]`."
+        }
+      ]
+    },
+    {
+      "name": "AnswerGroundedness",
+      "instructions": "Estimate the groundedness of a system's responses, against real retrieved documents written by people.\nYou will first enumerate whatever non-trivial or check-worthy claims are made in the system response, and then\ndiscuss the extent to which some or all of them can be deduced from the retrieved context and basic commonsense.",
+      "inputs": [
+        {
+          "name": "question",
+          "desc": "${question}",
+          "annotation": "str"
+        },
+        {
+          "name": "retrieved_context",
+          "desc": "${retrieved_context}",
+          "annotation": "str"
+        },
+        {
+          "name": "system_response",
+          "desc": "${system_response}",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "system_response_claims",
+          "desc": "enumeration of non-trivial or check-worthy claims in the system response",
+          "annotation": "str"
+        },
+        {
+          "name": "discussion",
+          "desc": "discussion of how supported the claims are by the retrieved context",
+          "annotation": "str"
+        },
+        {
+          "name": "groundedness",
+          "desc": "fraction (out of 1.0) of system response supported by the retrieved context",
+          "annotation": "float"
+        }
+      ],
+      "chain_of_thought_messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str): \n2. `retrieved_context` (str): \n3. `system_response` (str):\nYour output fields are:\n1. `reasoning` (str): \n2. `system_response_claims` (str): enumeration of non-trivial or check-worthy claims in the system response\n3. `discussion` (str): discussion of how supported the claims are by the retrieved context\n4. `groundedness` (float): fraction (out of 1.0) of system response supported by the retrieved context\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## retrieved_context ## ]]\n{retrieved_context}\n\n[[ ## system_response ## ]]\n{system_response}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## system_response_claims ## ]]\n{system_response_claims}\n\n[[ ## discussion ## ]]\n{discussion}\n\n[[ ## groundedness ## ]]\n{groundedness}        # note: the value you produce must be a single float value\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Estimate the groundedness of a system's responses, against real retrieved documents written by people.\n        You will first enumerate whatever non-trivial or check-worthy claims are made in the system response, and then\n        discuss the extent to which some or all of them can be deduced from the retrieved context and basic commonsense."
+        },
+        {
+          "role": "user",
+          "content": "[[ ## question ## ]]\nWhat is the capital of France?\n\n[[ ## retrieved_context ## ]]\nFrance's capital is Paris.\n\n[[ ## system_response ## ]]\nParis.\n\nRespond with the corresponding output fields, starting with the field `[[ ## reasoning ## ]]`, then `[[ ## system_response_claims ## ]]`, then `[[ ## discussion ## ]]`, then `[[ ## groundedness ## ]]` (must be formatted as a valid Python float), and then ending with the marker for `[[ ## completed ## ]]`."
+        }
+      ]
+    }
+  ],
+  "f1_score": [
+    {
+      "precision": -1.0,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -1.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -1.0,
+      "recall": 0.3,
+      "f1": 0.0
+    },
+    {
+      "precision": -1.0,
+      "recall": 0.5,
+      "f1": 0.0
+    },
+    {
+      "precision": -1.0,
+      "recall": 1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -1.0,
+      "recall": 5.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -0.0001,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -0.0001,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -0.0001,
+      "recall": 0.3,
+      "f1": 0.0
+    },
+    {
+      "precision": -0.0001,
+      "recall": 0.5,
+      "f1": 0.0
+    },
+    {
+      "precision": -0.0001,
+      "recall": 1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": -0.0001,
+      "recall": 5.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.0,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.0,
+      "recall": 0.3,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.0,
+      "recall": 0.5,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.0,
+      "recall": 1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.0,
+      "recall": 5.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.25,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.25,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.25,
+      "recall": 0.3,
+      "f1": 0.2727272727272727
+    },
+    {
+      "precision": 0.25,
+      "recall": 0.5,
+      "f1": 0.3333333333333333
+    },
+    {
+      "precision": 0.25,
+      "recall": 1.0,
+      "f1": 0.4
+    },
+    {
+      "precision": 0.25,
+      "recall": 5.0,
+      "f1": 0.4
+    },
+    {
+      "precision": 0.5,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.5,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.5,
+      "recall": 0.3,
+      "f1": 0.37499999999999994
+    },
+    {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    {
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "precision": 0.5,
+      "recall": 5.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "precision": 0.66,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.66,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 0.66,
+      "recall": 0.3,
+      "f1": 0.41250000000000003
+    },
+    {
+      "precision": 0.66,
+      "recall": 0.5,
+      "f1": 0.5689655172413792
+    },
+    {
+      "precision": 0.66,
+      "recall": 1.0,
+      "f1": 0.7951807228915663
+    },
+    {
+      "precision": 0.66,
+      "recall": 5.0,
+      "f1": 0.7951807228915663
+    },
+    {
+      "precision": 1.0,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 1.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 1.0,
+      "recall": 0.3,
+      "f1": 0.4615384615384615
+    },
+    {
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.6666666666666666
+    },
+    {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "precision": 1.0,
+      "recall": 5.0,
+      "f1": 1.0
+    },
+    {
+      "precision": 1.0001,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 1.0001,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 1.0001,
+      "recall": 0.3,
+      "f1": 0.4615384615384615
+    },
+    {
+      "precision": 1.0001,
+      "recall": 0.5,
+      "f1": 0.6666666666666666
+    },
+    {
+      "precision": 1.0001,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "precision": 1.0001,
+      "recall": 5.0,
+      "f1": 1.0
+    },
+    {
+      "precision": 2.0,
+      "recall": -1.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 2.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "precision": 2.0,
+      "recall": 0.3,
+      "f1": 0.4615384615384615
+    },
+    {
+      "precision": 2.0,
+      "recall": 0.5,
+      "f1": 0.6666666666666666
+    },
+    {
+      "precision": 2.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "precision": 2.0,
+      "recall": 5.0,
+      "f1": 1.0
+    }
+  ]
+}

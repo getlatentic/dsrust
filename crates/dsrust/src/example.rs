@@ -1,0 +1,576 @@
+//! The data a program is measured against, and the data it produces.
+//!
+//! dspy's `Example` is a dict with one extra idea: some of its keys are inputs and the rest are
+//! labels. That split is what lets an evaluator hand `example.inputs()` to a program and score
+//! the result against `example.labels()`, and it is what an optimizer needs to bootstrap demos.
+//! Python expresses it with attribute access on a dict; the same idea in Rust is a named type
+//! with the split made explicit, so a caller cannot forget to declare it.
+
+use std::collections::BTreeSet;
+
+use anyhow::{Result, anyhow};
+use serde_json::Value;
+
+use crate::lm::LmUsage;
+
+use crate::adapter::python_json::format_value;
+
+pub mod completions;
+
+pub use completions::Completions;
+
+/// One labelled example: field values, plus which of those fields are inputs.
+///
+/// Field order is preserved, because prompts render fields in signature order and a stable
+/// order keeps generated prompts reproducible.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Example {
+    fields: Vec<(String, Value)>,
+    /// `None` until [`Self::with_inputs`] declares the split. dspy raises rather than guess
+    /// when this is unset, and so does this: an evaluator that silently scored against an
+    /// empty input set would report a meaningless number instead of a mistake.
+    input_keys: Option<BTreeSet<String>>,
+}
+
+impl Example {
+    pub fn new(fields: impl IntoIterator<Item = (impl Into<String>, Value)>) -> Self {
+        Self {
+            fields: fields
+                .into_iter()
+                .map(|(name, value)| (name.into(), value))
+                .collect(),
+            input_keys: None,
+        }
+    }
+
+    /// Declare which fields are inputs; everything else becomes a label. Mirrors
+    /// `Example.with_inputs`, and is required before [`Self::inputs`] or [`Self::labels`]
+    /// mean anything.
+    pub fn with_inputs<S: Into<String>>(mut self, keys: impl IntoIterator<Item = S>) -> Self {
+        self.input_keys = Some(keys.into_iter().map(Into::into).collect());
+        self
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.fields
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, value)| value)
+    }
+
+    pub fn set(&mut self, name: impl Into<String>, value: Value) {
+        let name = name.into();
+        match self.fields.iter_mut().find(|(field, _)| *field == name) {
+            Some((_, slot)) => *slot = value,
+            None => self.fields.push((name, value)),
+        }
+    }
+
+    pub fn fields(&self) -> impl Iterator<Item = (&str, &Value)> {
+        self.fields
+            .iter()
+            .map(|(name, value)| (name.as_str(), value))
+    }
+
+    /// dspy `Example.keys()`: the field names, leaving out the `dspy_`-prefixed bookkeeping ones.
+    pub fn keys(&self) -> Vec<&str> {
+        self.fields()
+            .map(|(name, _)| name)
+            .filter(|name| !name.starts_with("dspy_"))
+            .collect()
+    }
+
+    /// dspy `Example.values()`: the values, in field order, leaving out the `dspy_` ones.
+    pub fn values(&self) -> Vec<&Value> {
+        self.fields()
+            .filter(|(name, _)| !name.starts_with("dspy_"))
+            .map(|(_, value)| value)
+            .collect()
+    }
+
+    /// dspy `Example.toDict()`: the fields as one JSON object, `dspy_` ones included as upstream's
+    /// are. A value here is JSON already, which is what upstream converts each of its into.
+    pub fn to_dict(&self) -> serde_json::Map<String, Value> {
+        self.fields
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect()
+    }
+
+    /// dspy `Example.copy(**kwargs)`: this example with these fields added or overridden.
+    ///
+    /// Upstream builds the copy through `__init__(base=self)`, which copies the store and not the
+    /// input keys, so the copy has none marked — reproduced.
+    pub fn with_fields(
+        &self,
+        fields: impl IntoIterator<Item = (impl Into<String>, Value)>,
+    ) -> Example {
+        let mut copied = Example::new(self.fields.iter().cloned());
+        for (name, value) in fields {
+            copied.set(name, value);
+        }
+        copied
+    }
+
+    /// dspy `Example.without(*keys)`: a copy with these fields dropped — a copy, so with no input
+    /// keys marked, as upstream's `copy` leaves it.
+    pub fn without<S: AsRef<str>>(&self, names: impl IntoIterator<Item = S>) -> Example {
+        let dropped: Vec<String> = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect();
+        let mut copied = self.subset(|name| !dropped.iter().any(|each| each == name));
+        copied.input_keys = None;
+        copied
+    }
+
+    pub fn is_input(&self, name: &str) -> bool {
+        self.input_keys
+            .as_ref()
+            .is_some_and(|keys| keys.contains(name))
+    }
+
+    /// Only the declared input fields, for handing to a program.
+    ///
+    /// Errors when the split was never declared, matching dspy's `ValueError`. Returning an
+    /// empty set instead would let an evaluator score a program that received nothing.
+    pub fn inputs(&self) -> Result<Example> {
+        let keys = self.declared()?;
+        Ok(self.subset(|name| keys.contains(name)))
+    }
+
+    /// Everything not declared an input: the expected answer to score against.
+    /// dspy `Example.labels()`: the fields not marked as inputs — and, as upstream builds it, with
+    /// no input keys marked on the result.
+    pub fn labels(&self) -> Result<Example> {
+        let keys = self.declared()?;
+        let mut labels = self.subset(|name| !keys.contains(name));
+        labels.input_keys = None;
+        Ok(labels)
+    }
+
+    fn declared(&self) -> Result<&BTreeSet<String>> {
+        self.input_keys.as_ref().ok_or_else(|| {
+            anyhow!("inputs have not been set for this example; call with_inputs first")
+        })
+    }
+
+    fn subset(&self, keep: impl Fn(&str) -> bool) -> Example {
+        Example {
+            fields: self
+                .fields
+                .iter()
+                .filter(|(name, _)| keep(name))
+                .cloned()
+                .collect(),
+            input_keys: self.input_keys.clone(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
+    /// The field values as prompt-ready strings, in declaration order. A JSON string renders
+    /// as its contents rather than a quoted literal, matching how dspy formats field values.
+    pub fn rendered(&self) -> Vec<(String, String)> {
+        self.fields
+            .iter()
+            .map(|(name, value)| (name.clone(), format_value(value)))
+            .collect()
+    }
+}
+
+/// Build an [`Example`] from named fields, the way `dspy.Example(question=..., answer=...)`
+/// reads in Python. Values go through `serde_json::json!`, so a literal, a variable, or a
+/// nested structure all work.
+///
+/// ```
+/// let example = dsrust::example! { question: "Why is the sky blue?", answer: "Scattering." }
+///     .with_inputs(["question"]);
+/// assert_eq!(example.labels().unwrap().len(), 1);
+/// ```
+/// The inputs of one call, each field named where its value goes.
+///
+/// ```
+/// # async fn wrapper(haiku: impl dsrust::Module) -> anyhow::Result<()> {
+/// let out = haiku.forward(dsrust::input! { subject: "computer science" }).await?;
+/// # Ok(()) }
+/// ```
+///
+/// Every field is an input, which is what asking a module means and what separates this from
+/// `example!`: a trainset row carries labels beside its inputs and has to say which are which,
+/// while a call carries only what it is asking about.
+#[macro_export]
+macro_rules! input {
+    ($($name:ident : $value:expr),* $(,)?) => {
+        $crate::example! { $($name: $value),* }
+            .with_inputs([$(stringify!($name)),*])
+    };
+}
+
+#[macro_export]
+macro_rules! example {
+    ($($name:ident : $value:expr),* $(,)?) => {
+        $crate::Example::new([
+            $((stringify!($name), $crate::__macro_support::json!($value))),*
+        ])
+    };
+}
+
+/// What a module returns: the parsed output fields, plus what produced them.
+///
+/// dspy's `Prediction` is an `Example` carrying the raw completions alongside the parsed
+/// values. Keeping the raw reply is not decoration — an evaluator reports it when a metric
+/// fails, and an optimizer needs it to judge a trace.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prediction {
+    pub example: Example,
+    /// The model's reply exactly as it arrived, before parsing.
+    pub raw: String,
+    /// What every call behind this answer cost together, or nothing when no model reported it —
+    /// which is what a scripted model reports, and what a provider omitting the block reports.
+    ///
+    /// dspy reaches the same number through `Prediction.get_lm_usage()`, filled only while
+    /// `track_usage` is set. It is unconditional here because it arrives on the response either
+    /// way, so there is no setting for it to be switched off by and no ambient state to read.
+    pub usage: Option<LmUsage>,
+    /// Every candidate the model returned, when more than one was asked for — dspy's
+    /// `Prediction.completions`, which `from_completions` fills.
+    ///
+    /// The fields above are the *first* candidate, which is upstream's
+    /// `{k: v[0] for k, v in completions.items()}`. Absent for a call that asked for one answer,
+    /// since there is nothing to hold beside it.
+    pub completions: Option<Completions>,
+}
+
+impl Prediction {
+    pub fn new(example: Example, raw: impl Into<String>) -> Self {
+        Self {
+            example,
+            raw: raw.into(),
+            usage: None,
+            completions: None,
+        }
+    }
+
+    /// dspy `Prediction.from_completions`: several candidates, of which the first is the answer.
+    ///
+    /// Upstream sets `_store = {k: v[0] for k, v in completions.items()}` — so reading a field off
+    /// the prediction gives the first candidate's value, and `.completions` gives them all. A single
+    /// candidate carries no completions, which is what a call that asked for one answer produces.
+    pub fn from_candidates(candidates: &[Example], raw: impl Into<String>) -> Result<Self> {
+        let first = candidates.first().cloned().unwrap_or_default();
+        let completions = match candidates.len() > 1 {
+            true => Some(Completions::from_candidates(candidates)?),
+            false => None,
+        };
+        Ok(Self {
+            example: first,
+            raw: raw.into(),
+            usage: None,
+            completions,
+        })
+    }
+
+    /// What the calls behind this answer cost.
+    pub fn set_lm_usage(mut self, usage: Option<LmUsage>) -> Self {
+        self.usage = usage;
+        self
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.example.get(name)
+    }
+
+    /// The answer as the task's own outputs struct, so a field is checked rather than looked up.
+    ///
+    /// `Predict` and `ChainOfThought` are generic over the task and hand back `S::Outputs`
+    /// already. Every other module decides its outputs as it runs — an agent's come from whatever
+    /// `submit` carried — so it answers with a `Prediction` however its signature was spelled, and
+    /// this is how that becomes a struct. Fields the task does not declare, like an agent's
+    /// `trajectory`, are ignored.
+    ///
+    /// dspy needs no equivalent: its `Prediction` answers any attribute at run time, and a field
+    /// the agent never produced reads as an `AttributeError` when it is touched. Here the whole
+    /// answer is checked at once, and a loop that ended without producing the outputs is named
+    /// rather than reported as a missing field.
+    ///
+    /// ```
+    /// # use dsrust::{Example, Prediction};
+    /// # use serde::Deserialize;
+    /// #[derive(Deserialize)]
+    /// struct QAOutputs {
+    ///     answer: String,
+    /// }
+    ///
+    /// let prediction = Prediction::new(
+    ///     Example::new([("answer", serde_json::json!("Paris"))]),
+    ///     "",
+    /// );
+    /// assert_eq!(prediction.typed::<QAOutputs>().unwrap().answer, "Paris");
+    /// ```
+    pub fn typed<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        let named: serde_json::Map<String, Value> = self
+            .example
+            .fields()
+            .map(|(name, value)| (name.to_owned(), value.clone()))
+            .collect();
+        serde_json::from_value(Value::Object(named)).map_err(|error| {
+            match self.get("termination_reason") {
+                // The agent finished, but with nothing to read: it ran out of turns, or answered in
+                // prose instead of calling `submit`. Saying which beats naming the absent field.
+                Some(Value::String(reason)) if reason != "submit" && reason != "forced_submit" => {
+                    anyhow!("the loop ended without producing the outputs ({reason})")
+                }
+                _ => anyhow!("{error}"),
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn qa() -> Example {
+        Example::new([
+            ("question", json!("Why is the sky blue?")),
+            ("answer", json!("Rayleigh scattering.")),
+        ])
+    }
+
+    #[test]
+    fn with_inputs_splits_the_fields_into_inputs_and_labels() {
+        let example = qa().with_inputs(["question"]);
+        assert_eq!(example.inputs().unwrap().len(), 1);
+        assert_eq!(example.labels().unwrap().len(), 1);
+        assert_eq!(
+            example.inputs().unwrap().get("question").unwrap(),
+            &json!("Why is the sky blue?")
+        );
+        assert_eq!(
+            example.labels().unwrap().get("answer").unwrap(),
+            &json!("Rayleigh scattering.")
+        );
+    }
+
+    #[test]
+    fn an_undeclared_example_refuses_to_split() {
+        // Checked against dspy 3.2.1, which raises ValueError here. Answering with an empty
+        // input set would hand a program nothing and still score it.
+        let example = qa();
+        assert!(example.inputs().is_err());
+        assert!(example.labels().is_err());
+    }
+
+    #[test]
+    fn with_inputs_leaves_the_original_undeclared() {
+        // dspy's with_inputs copies; mutating in place would surprise a caller reusing a
+        // trainset example.
+        let base = qa();
+        let _marked = base.clone().with_inputs(["question"]);
+        assert!(base.inputs().is_err());
+    }
+
+    #[test]
+    fn marking_a_field_that_does_not_exist_is_allowed_and_yields_nothing() {
+        // dspy tolerates this rather than validating against the field list.
+        let example = qa().with_inputs(["missing"]);
+        assert!(example.inputs().unwrap().is_empty());
+        assert_eq!(example.labels().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn field_order_survives_every_operation() {
+        let example = qa().with_inputs(["question"]);
+        let names: Vec<&str> = example.fields().map(|(name, _)| name).collect();
+        assert_eq!(names, ["question", "answer"]);
+        let labels = example.labels().unwrap();
+        let label_names: Vec<&str> = labels.fields().map(|(name, _)| name).collect();
+        assert_eq!(label_names, ["answer"]);
+    }
+
+    #[test]
+    fn setting_a_field_replaces_rather_than_duplicates() {
+        let mut example = qa();
+        example.set("answer", json!("Scattering."));
+        assert_eq!(example.len(), 2);
+        assert_eq!(example.get("answer").unwrap(), &json!("Scattering."));
+    }
+
+    #[test]
+    fn rendering_leaves_strings_unquoted_and_json_intact() {
+        let example = Example::new([
+            ("note", json!("hello")),
+            ("count", json!(3)),
+            ("tags", json!(["a", "b"])),
+        ]);
+        assert_eq!(
+            example.rendered(),
+            vec![
+                ("note".to_owned(), "hello".to_owned()),
+                ("count".to_owned(), "3".to_owned()),
+                ("tags".to_owned(), r#"["a", "b"]"#.to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_prediction_keeps_the_reply_that_produced_it() {
+        let prediction = Prediction::new(qa(), "[[ ## answer ## ]]\nRayleigh scattering.");
+        assert_eq!(
+            prediction.get("answer").unwrap(),
+            &json!("Rayleigh scattering.")
+        );
+        assert!(prediction.raw.contains("[[ ## answer ## ]]"));
+    }
+}
+
+#[cfg(test)]
+mod input_macro {
+    /// A call's fields are all inputs; a trainset row's are not, until it says so.
+    #[test]
+    fn every_field_of_a_call_is_an_input() {
+        let asking = crate::input! { subject: "computer science", tone: "wry" };
+        assert_eq!(asking.inputs().expect("declared").fields().count(), 2);
+        assert!(asking.labels().expect("declared").fields().next().is_none());
+
+        let row = crate::example! { subject: "computer science", haiku: "silicon dreaming" };
+        assert!(
+            row.inputs().is_err(),
+            "a row has not said which fields are inputs"
+        );
+    }
+}
+
+/// dspy's `Example.__getitem__`: `example["question"]`, and a missing field is the caller's error
+/// as a `KeyError` is upstream.
+impl std::ops::Index<&str> for Example {
+    type Output = Value;
+
+    fn index(&self, name: &str) -> &Value {
+        self.get(name)
+            .unwrap_or_else(|| panic!("no field `{name}` on this example"))
+    }
+}
+
+/// dspy's `Example.__repr__`: `Example({'q': 'Why?'}) (input_keys={'q'})`, the `dspy_` fields left
+/// out. Upstream's input keys are a set, printed in whatever order the set holds; here they are
+/// printed sorted.
+impl std::fmt::Display for Example {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let shown: serde_json::Map<String, Value> = self
+            .fields
+            .iter()
+            .filter(|(name, _)| !name.starts_with("dspy_"))
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect();
+        let input_keys = match &self.input_keys {
+            None => "None".to_owned(),
+            Some(keys) => format!(
+                "{{{}}}",
+                keys.iter()
+                    .map(|key| crate::python::quoted(key))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        };
+        write!(
+            f,
+            "Example({}) (input_keys={input_keys})",
+            crate::python::repr(&Value::Object(shown))
+        )
+    }
+}
+
+/// dspy's `Prediction.__repr__`: each field on its own line, and when the prediction carries more
+/// than one completion, how many were left out.
+impl std::fmt::Display for Prediction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let store = self
+            .example
+            .fields
+            .iter()
+            .map(|(name, value)| format!("{name}={}", crate::python::repr(value)))
+            .collect::<Vec<_>>()
+            .join(",\n    ");
+        match self.completions.as_ref().map(Completions::len) {
+            Some(count) if count > 1 => write!(
+                f,
+                "Prediction(\n    {store},\n    completions=Completions(...)\n) ({} completions omitted)",
+                count - 1
+            ),
+            _ => write!(f, "Prediction(\n    {store}\n)"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod dspy_shapes {
+    //! What real dspy printed for the same calls, recorded on 2026-09-02 by dsrust-examples'
+    //! docstring recorder, which holds the docstrings' own cases; these are the edges beside them.
+
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn copy_and_without_drop_the_input_keys() {
+        let example = Example::new([("q", json!("1")), ("a", json!("2"))]).with_inputs(["q"]);
+        assert!(example.with_fields([("a", json!("3"))]).inputs().is_err());
+        assert!(example.without(["a"]).inputs().is_err());
+        assert_eq!(example.without(["a"]).keys(), vec!["q"]);
+    }
+
+    #[test]
+    fn keys_leave_bookkeeping_out_and_to_dict_keeps_it() {
+        let example = Example::new([
+            ("q", json!("1")),
+            ("a", json!("2")),
+            ("dspy_uuid", json!("u")),
+        ]);
+        assert_eq!(example.keys(), vec!["q", "a"]);
+        assert_eq!(example.values(), vec![&json!("1"), &json!("2")]);
+        assert_eq!(
+            serde_json::to_string(&Value::Object(example.to_dict())).unwrap(),
+            r#"{"q":"1","a":"2","dspy_uuid":"u"}"#
+        );
+    }
+
+    #[test]
+    fn display_is_dspys_repr() {
+        let example = Example::new([("a", json!(1)), ("b", json!(2))]).with_inputs(["a", "b"]);
+        assert_eq!(
+            example.to_string(),
+            "Example({'a': 1, 'b': 2}) (input_keys={'a', 'b'})"
+        );
+        assert_eq!(
+            example.inputs().unwrap().labels().unwrap().to_string(),
+            "Example({}) (input_keys=None)"
+        );
+        assert_eq!(
+            example.inputs().unwrap().to_string(),
+            "Example({'a': 1, 'b': 2}) (input_keys={'a', 'b'})"
+        );
+        let one = Prediction::new(Example::new([("answer", json!("x")), ("n", json!(2))]), "");
+        assert_eq!(one.to_string(), "Prediction(\n    answer='x',\n    n=2\n)");
+        let two = Prediction::from_candidates(
+            &[
+                Example::new([("answer", json!("x"))]),
+                Example::new([("answer", json!("y"))]),
+            ],
+            "",
+        )
+        .unwrap();
+        assert_eq!(
+            two.to_string(),
+            "Prediction(\n    answer='x',\n    completions=Completions(...)\n) (1 completions omitted)"
+        );
+    }
+}

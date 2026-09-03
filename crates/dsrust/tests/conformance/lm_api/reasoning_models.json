@@ -1,0 +1,521 @@
+{
+  "source": "dspy==3.3.0 clients/openai_format.py and clients/lm.py",
+  "dspy_version": "3.3.0",
+  "note": "Per model name: the token key `to_openai_chat_request` emits, whether `_validate_openai_reasoning_temperature` refuses a reasoning effort at temperature 0.5, and the ordered keys of `LM.dump_state`. The first two follow openai_format's predicate and the third follows lm.py's, which is why `max_tokens` moves to the end of the block for some names and not others.",
+  "constructed_with": {
+    "temperature": 1.0,
+    "max_tokens": 16000
+  },
+  "cases": [
+    {
+      "model": "openai/o1",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/o1-mini",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/o1-pro",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/o3",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/o3-mini",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/o3-mini-2025-01-31",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/o4-mini",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/gpt-5",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/gpt-5-nano",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/gpt-5-codex",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "o3",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "gpt-5",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/gpt-4o",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/gpt-4o-mini",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/gpt-4.1",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/gpt-3.5-turbo",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/chatgpt-4o-latest",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/gpt-5-chat",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/gpt-5-chat-latest",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/o2",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/omni-moderation-latest",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/o200k-base",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/o1-preview",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/gpt-5.1",
+      "chat_token_key": "max_completion_tokens",
+      "temperature_refused": true,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    },
+    {
+      "model": "openai/o5",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "azure/o3",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openrouter/openai/gpt-5",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs",
+        "max_tokens"
+      ]
+    },
+    {
+      "model": "openai/gpt-5.1-chat",
+      "chat_token_key": "max_tokens",
+      "temperature_refused": false,
+      "state_keys": [
+        "_dspy_lm_class",
+        "model",
+        "model_type",
+        "cache",
+        "num_retries",
+        "temperature",
+        "max_tokens",
+        "finetuning_model",
+        "launch_kwargs",
+        "train_kwargs"
+      ]
+    }
+  ]
+}

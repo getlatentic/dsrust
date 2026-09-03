@@ -1,0 +1,59 @@
+{
+  "source": "CPython 3.13.5, via scripts/generate_python_text_fixtures.py",
+  "python_version": "3.13.5",
+  "note": "`inspect.cleandoc` over the docstring shapes a signature is written in. dspy runs it on a signature class's docstring, so this decides the instruction line breaks of every declared signature.",
+  "cases": {
+    "conventional": {
+      "raw": " Answer the question.\n Be brief.",
+      "cleandoc": "Answer the question.\nBe brief."
+    },
+    "uniformly indented": {
+      "raw": "     Answer the question.\n     Be brief.",
+      "cleandoc": "Answer the question.\nBe brief."
+    },
+    "first line flush": {
+      "raw": "Answer.\n     Be brief.",
+      "cleandoc": "Answer.\nBe brief."
+    },
+    "ragged": {
+      "raw": " Answer.\n   Deeper.\n Back.",
+      "cleandoc": "Answer.\n  Deeper.\nBack."
+    },
+    "with a tab": {
+      "raw": " Answer.\tBriefly.",
+      "cleandoc": "Answer.        Briefly."
+    },
+    "leading blank line": {
+      "raw": "\n Answer.",
+      "cleandoc": "Answer."
+    },
+    "trailing newline": {
+      "raw": " Answer.\n",
+      "cleandoc": "Answer."
+    },
+    "blank line between": {
+      "raw": " Answer.\n\n Be brief.",
+      "cleandoc": "Answer.\n\nBe brief."
+    },
+    "one line": {
+      "raw": " Answer.",
+      "cleandoc": "Answer."
+    },
+    "trailing blank lines": {
+      "raw": "    Answer.\n    Be brief.\n\n\n",
+      "cleandoc": "Answer.\nBe brief."
+    },
+    "tab on its own line": {
+      "raw": "Answer.\n\tTabbed.",
+      "cleandoc": "Answer.\nTabbed."
+    },
+    "empty": {
+      "raw": "",
+      "cleandoc": ""
+    },
+    "only whitespace": {
+      "raw": "   \n  \n",
+      "cleandoc": "  "
+    }
+  }
+}

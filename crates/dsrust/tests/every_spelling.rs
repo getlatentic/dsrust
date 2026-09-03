@@ -1,0 +1,453 @@
+//! Every way a task can be declared and asked, *run* against a scripted model.
+//!
+//! Two ways to declare a signature (field names in a string, or a struct), two modules that ask
+//! it (`Predict`, `ChainOfThought`), and both the long spelling and the macro. A change that
+//! makes one of them read differently fails here rather than in someone's editor.
+//!
+//! Whether the guides say the same thing is `scripts/check_docs.py`'s job: it compiles their blocks
+//! as written. This file answers the other half — that a shape does what the page says it does.
+
+use std::sync::Arc;
+
+use dsrust::{
+    Ask, ChainOfThought, DummyLM, Forward, Module, Predict, Signature, call, example, input,
+};
+
+/// One in, one out.
+///
+/// The fields are read through the generated companions rather than the struct itself, which
+/// is what the derive exists to do.
+#[allow(dead_code)]
+#[derive(Signature)]
+/// Answer the question.
+struct QA {
+    #[input]
+    question: String,
+    #[output]
+    answer: String,
+}
+
+/// Two in, two out.
+#[allow(dead_code)]
+#[derive(Signature)]
+/// Draft a haiku and say what it is about.
+struct Haiku {
+    #[input]
+    subject: String,
+    #[input]
+    tone: String,
+    #[output]
+    haiku: String,
+    #[output]
+    mood: String,
+}
+
+/// One model for the whole file, answering by what the request mentions.
+///
+/// The configured model is process-wide and these tests run at once, so a model that answered in
+/// order would hand a test another test's reply. Keying by content makes the answers independent
+/// of who asks first.
+fn install() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        dsrust::lm::global::configure_model(
+            reqwest::Client::new(),
+            Arc::new(DummyLM::keyed([
+                ("capital of France?", example! { answer: "Paris" }),
+                ("capital of Germany?", example! { answer: "Berlin" }),
+                (
+                    "computer science",
+                    example! { haiku: "silicon dreaming", mood: "wry" },
+                ),
+                (
+                    "quantum computing",
+                    example! { haiku: "qubits entangle", mood: "curious" },
+                ),
+                (
+                    "a calm colour?",
+                    example! { reasoning: "cold colours read calm", answer: "blue" },
+                ),
+                // The two steps of the caller-defined module below, each keyed by what it is
+                // handed rather than by what the program was originally asked.
+                ("winter mornings", example! { angle: "stillness before the day" }),
+                (
+                    "stillness before the day",
+                    example! { haiku: "frost holds the window" },
+                ),
+                ("one word please", example! { answer: "Paris" }),
+                (
+                    "machine learning",
+                    example! { reasoning: "gradients descend", haiku: "weights settle down", mood: "patient" },
+                ),
+            ])),
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// A signature written as field names
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_string_signature_one_in_one_out() {
+    install();
+
+    // Long: build the signature, then the module, then name the inputs.
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let qa = Predict::from_signature(signature);
+    let out = qa
+        .forward(input! { question: "capital of France?" })
+        .await
+        .expect("asks");
+    assert_eq!(out.get("answer").unwrap(), "Paris");
+
+    // Short: the spelling is checked as this test compiles.
+    let qa = Predict!("question -> answer");
+    let out = call!(qa, question = "capital of France?")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("answer").unwrap(), "Paris");
+}
+
+#[tokio::test]
+async fn a_string_signature_two_in_two_out() {
+    install();
+
+    let qa = Predict!("subject, tone -> haiku, mood");
+    let out = call!(qa, subject = "computer science", tone = "wry")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("haiku").unwrap(), "silicon dreaming");
+    assert_eq!(out.get("mood").unwrap(), "wry");
+}
+
+#[tokio::test]
+async fn a_string_signature_through_chain_of_thought() {
+    // Chain of thought asks for a leading `reasoning` field and keeps it out of the answer.
+    install();
+
+    let picked = ChainOfThought!("question -> answer");
+    let out = call!(picked, question = "a calm colour?")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("answer").unwrap(), "blue");
+}
+
+// ---------------------------------------------------------------------------
+// A signature written as a struct
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_derived_signature_one_in_one_out() {
+    install();
+
+    // Long: the module for the task, asked with the task's own inputs struct, answering with
+    // its own outputs struct.
+    let qa = Predict::<QA>::new();
+    let out = qa
+        .call_inputs(&QAInputs {
+            question: "capital of Germany?".into(),
+        })
+        .await
+        .expect("asks");
+    assert_eq!(out.answer, "Berlin");
+
+    // Short: the same module through the macro, asked the way a string signature is asked.
+    let qa = Predict!(QA);
+    let out = call!(qa, question = "capital of France?")
+        .await
+        .expect("asks");
+    assert_eq!(out.answer, "Paris");
+}
+
+#[tokio::test]
+async fn a_derived_signature_two_in_two_out() {
+    install();
+
+    let poet = Predict!(Haiku);
+    let out = call!(poet, subject = "quantum computing", tone = "wry")
+        .await
+        .expect("asks");
+    assert_eq!(out.haiku, "qubits entangle");
+    assert_eq!(out.mood, "curious");
+
+    // One invocation naming the task and filling it, which evaluates to the call itself.
+    let out = Predict!(Haiku {
+        subject: "quantum computing",
+        tone: "wry"
+    })
+    .await
+    .expect("asks");
+    assert_eq!(out.haiku, "qubits entangle");
+}
+
+#[tokio::test]
+async fn a_derived_signature_through_chain_of_thought() {
+    install();
+
+    let out = ChainOfThought!(Haiku {
+        subject: "machine learning",
+        tone: "patient"
+    })
+    .await
+    .expect("asks");
+    assert_eq!(out.haiku, "weights settle down");
+    assert_eq!(out.mood, "patient");
+}
+
+/// Whichever way it was declared, it is the same type and the same trait.
+#[tokio::test]
+async fn both_forms_are_one_type_and_one_module() {
+    fn is_a_module<M: Module>(_: &M) {}
+    fn is_askable<A: Ask>(_: &A) {}
+
+    let declared = Predict!("question -> answer");
+    let derived = Predict!(QA);
+    let thinking = ChainOfThought!(QA);
+
+    is_a_module(&declared);
+    is_a_module(&derived);
+    is_a_module(&thinking);
+    is_askable(&declared);
+    is_askable(&derived);
+}
+
+// ---------------------------------------------------------------------------
+// A module of your own
+// ---------------------------------------------------------------------------
+
+/// Two steps composed into one program, the way a caller writes theirs.
+///
+/// The derive supplies what Python inherits: the walk an optimizer works through, and being
+/// callable through `call!`. What is left is the part only the author knows.
+#[derive(dsrust::Module)]
+struct Outline {
+    plan: Predict,
+    write: Predict,
+}
+
+impl Outline {
+    fn new() -> Self {
+        Self {
+            plan: Predict!("subject -> angle"),
+            write: Predict!("angle -> haiku"),
+        }
+    }
+}
+
+impl Forward for Outline {
+    async fn forward(&self, inputs: dsrust::Example) -> anyhow::Result<dsrust::Prediction> {
+        let angle = self.plan.forward(inputs).await?;
+        let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
+        self.write.forward(handed).await
+    }
+}
+
+#[tokio::test]
+async fn a_module_of_your_own_composes_and_is_optimizable() {
+    install();
+
+    let mut mine = Outline::new();
+    let out = call!(mine, subject = "winter mornings")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("haiku").unwrap(), "frost holds the window");
+
+    // The seam that matters: an optimizer can see both steps and write to each.
+    let named: Vec<String> = mine
+        .named_predictors()
+        .into_iter()
+        .map(|predictor| predictor.name)
+        .collect();
+    assert_eq!(named, ["plan", "write"]);
+}
+
+// ---------------------------------------------------------------------------
+// Wrapping a module in another module
+// ---------------------------------------------------------------------------
+
+/// A reward is a named function in dspy's own example, and reads better than a closure written
+/// inline between the three arguments around it.
+fn one_word(_inputs: &dsrust::Example, out: &dsrust::Prediction) -> f64 {
+    match out.get("answer").and_then(|answer| answer.as_str()) {
+        Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
+        _ => 0.0,
+    }
+}
+
+/// `BestOfN` takes a *module*, not a signature — upstream's is
+/// `BestOfN(module=qa, N=…, reward_fn=…, threshold=…)`. There is no signature to hand it; the
+/// signature lives in whatever it wraps.
+#[tokio::test]
+async fn best_of_n_wraps_a_module_and_is_called_like_one() {
+    install();
+
+    let best = dsrust::BestOfN::new(
+        Predict!("question -> answer"),
+        3,
+        |_inputs: &dsrust::Example, prediction: &dsrust::Prediction| match prediction
+            .get("answer")
+            .and_then(|answer| answer.as_str())
+        {
+            Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
+            _ => 0.0,
+        },
+        1.0,
+    );
+
+    let out = call!(best, question = "one word please")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("answer").unwrap(), "Paris");
+}
+
+/// And being a `Module` is the point: it nests, and an optimizer's walk reaches the predictor
+/// inside it rather than stopping at the wrapper.
+#[tokio::test]
+async fn best_of_n_is_a_module_an_optimizer_can_walk() {
+    use dsrust::Module;
+
+    let mut best = dsrust::BestOfN!(
+        Predict!("question -> answer"),
+        n = 2,
+        reward = one_word,
+        threshold = 1.0
+    );
+    assert_eq!(best.named_predictors().len(), 1);
+}
+
+/// A derived signature works with the ReAct macros, not only a string literal.
+///
+/// `Predict!` and `ChainOfThought!` took both spellings from the start; the two agent macros
+/// took a literal only, so a caller who had declared their task as a struct had to reach past the
+/// macro. The four accept the same two shapes now.
+#[test]
+fn the_react_macros_take_a_declared_task_as_well_as_a_string() {
+    #[derive(dsrust::Signature)]
+    /// Answer the question, using tools where they help.
+    struct Investigate {
+        #[input]
+        question: String,
+        #[output]
+        answer: String,
+    }
+
+    let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
+        "lookup",
+        "look something up",
+        serde_json::json!({ "term": { "type": "string" } }),
+        |_: &serde_json::Value| Ok("found".to_owned()),
+    ))];
+    let spelled = dsrust::ReAct!("question -> answer", tools);
+
+    let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
+        "lookup",
+        "look something up",
+        serde_json::json!({ "term": { "type": "string" } }),
+        |_: &serde_json::Value| Ok("found".to_owned()),
+    ))];
+    let declared = dsrust::ReAct!(Investigate, tools, max_iters = 4);
+
+    assert_eq!(spelled.signature.outputs[0].name, "answer");
+    assert_eq!(declared.signature.outputs[0].name, "answer");
+    assert_eq!(declared.max_iters, 4);
+    // The declared form carries its docstring as instructions, which the string form cannot state.
+    assert!(
+        declared
+            .signature
+            .instructions
+            .contains("using tools where they help")
+    );
+    assert!(
+        !spelled
+            .signature
+            .instructions
+            .contains("using tools where they help")
+    );
+}
+
+/// Every signature-taking module macro accepts both spellings, and the code-writing three now have
+/// a macro at all — before this a caller wrote `ProgramOfThought::new(Task::signature())`.
+#[test]
+fn the_code_writing_macros_take_both_spellings() {
+    #[derive(dsrust::Signature)]
+    /// Compute the answer in Python.
+    struct Compute {
+        #[input]
+        question: String,
+        #[output]
+        answer: String,
+    }
+
+    fn tools() -> Vec<std::sync::Arc<dyn dsrust::Tool>> {
+        vec![std::sync::Arc::new(dsrust::FnTool::new(
+            "add",
+            "add two numbers",
+            serde_json::json!({ "a": { "type": "number" }, "b": { "type": "number" } }),
+            |_: &serde_json::Value| Ok("3".to_owned()),
+        ))]
+    }
+
+    let pot = dsrust::ProgramOfThought!("question -> answer", max_iters = 2);
+    let pot_typed = dsrust::ProgramOfThought!(Compute);
+    let act = dsrust::CodeAct!("question -> answer", tools(), max_iters = 3);
+    let act_typed = dsrust::CodeAct!(Compute, tools());
+    let reader = dsrust::RLM!("question -> answer", max_iters = 6);
+    let reader_typed = dsrust::RLM!(Compute);
+
+    for signature in [
+        &pot.signature,
+        &pot_typed.signature,
+        &act.signature,
+        &act_typed.signature,
+        &reader.signature,
+        &reader_typed.signature,
+    ] {
+        assert_eq!(
+            signature.outputs[0].name, "answer",
+            "every spelling declares the same field"
+        );
+    }
+    // Only the declared spelling can carry instructions, which is the reason to write the struct.
+    assert!(
+        pot_typed
+            .signature
+            .instructions
+            .contains("Compute the answer in Python")
+    );
+    assert!(
+        !pot.signature
+            .instructions
+            .contains("Compute the answer in Python")
+    );
+}
+
+/// The shapes `docs/usage.md` shows for configuring a model and reading a failure.
+///
+/// The guide opens by saying every Rust shape in it is compiled here, which is only true if the
+/// ones added to it are added here too.
+#[test]
+fn the_guides_model_and_error_shapes_compile() {
+    use dsrust::lm::{LM, LmErrorKind, LmFailure};
+
+    let configured = LM::builder("openai/gpt-4o-mini")
+        .temperature(0.2)
+        .max_tokens(512)
+        .cache(false)
+        .build()
+        .expect("a model id");
+    assert_eq!(configured.config.temperature, Some(0.2));
+    assert_eq!(configured.config.max_tokens, Some(512));
+    assert!(!configured.cache, "the guide's cache(false)");
+
+    // The match arms the guide shows, over a failure a provider would produce.
+    let error =
+        anyhow::Error::new(LmFailure::from_status(429, "slow down").on_model("openai/gpt-4o-mini"));
+    let described = match error.downcast_ref::<LmFailure>() {
+        Some(failed) if failed.is_retryable() => format!("retry after {:?}", failed.retry_after),
+        Some(failed) => format!("{}: {}", failed.kind, failed.message),
+        None => format!("{error:#}"),
+    };
+    assert_eq!(described, "retry after None");
+    assert_eq!(LmErrorKind::from_status(Some(429)), LmErrorKind::RateLimit);
+}

@@ -25,10 +25,12 @@ import json
 import pathlib
 import sys
 
+import statistics
+
 import dspy
 from dspy.utils.dummies import DummyLM
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 # One trainset the table half-solves: France it answers right, Spain it answers wrong (the label is
@@ -120,16 +122,53 @@ def build_student(instruction: str) -> dspy.Predict:
 def run(module: dspy.Module, keyed: dict, trainset_rows: list, breadth: int, depth: int) -> tuple[list[str], list[dict]]:
     CALLS.clear()
     dspy.configure(lm=RecordingLM(dict(keyed)))
-    optimizer = dspy.COPRO(metric=exact_match, breadth=breadth, depth=depth, init_temperature=1.4)
+    optimizer = dspy.COPRO(
+        metric=exact_match,
+        breadth=breadth,
+        depth=depth,
+        init_temperature=1.4,
+        track_stats=True,
+    )
     eval_kwargs = dict(num_threads=1, display_progress=False, display_table=0)
     devset = [dspy.Example(question=q, answer=a).with_inputs("question") for q, a in trainset_rows]
     compiled = optimizer.compile(module, trainset=devset, eval_kwargs=eval_kwargs)
     final = [predictor.signature.instructions for _, predictor in compiled.named_predictors()]
-    return final, list(CALLS)
+    return final, list(CALLS), tracked(compiled, module)
+
+
+def tracked(compiled, module) -> dict:
+    """`track_stats`'s three attributes, re-keyed from `id(predictor)` to predictor position.
+
+    Upstream keys by object identity, which no other process can reproduce; the position among
+    `named_predictors` is the same grouping under a key a port can hold. The lookup goes through
+    the *compiled* program's predictors, since that is what the dicts were keyed by.
+    """
+    by_index = {}
+    for kind in ("results_best", "results_latest"):
+        rows = getattr(compiled, kind, {}) or {}
+        # By insertion order, not by `id()`: the dicts are keyed on a `student.deepcopy()` that is
+        # never returned, so no object reachable from here has those ids. They were built by
+        # iterating `module.predictors()`, and a Python dict keeps that order — which makes the nth
+        # entry the nth predictor and is the only way the grouping crosses a process boundary.
+        by_index[kind] = [
+            [
+                {
+                    "depth": entry["depth"][at],
+                    "max": entry["max"][at],
+                    "average": entry["average"][at],
+                    "min": entry["min"][at],
+                    "std": entry["std"][at],
+                }
+                for at in range(len(entry["depth"]))
+            ]
+            for entry in rows.values()
+        ]
+    by_index["total_calls"] = getattr(compiled, "total_calls", None)
+    return by_index
 
 
 def compile_once(instruction: str, breadth: int, depth: int) -> dict:
-    final, calls = run(build_student(instruction), KEYED, TRAINSET, breadth, depth)
+    final, calls, stats = run(build_student(instruction), KEYED, TRAINSET, breadth, depth)
     return {
         "module": "predict",
         "instructions": [instruction],
@@ -139,11 +178,12 @@ def compile_once(instruction: str, breadth: int, depth: int) -> dict:
         "keyed": [{"key": key, "fields": fields} for key, fields in KEYED.items()],
         "calls": calls,
         "final": final,
+        "stats": stats,
     }
 
 
 def compile_pair_once(first: str, second: str, breadth: int, depth: int) -> dict:
-    final, calls = run(Pair(first, second), PAIR_KEYED, PAIR_TRAINSET, breadth, depth)
+    final, calls, stats = run(Pair(first, second), PAIR_KEYED, PAIR_TRAINSET, breadth, depth)
     return {
         "module": "pair",
         "instructions": [first, second],
@@ -153,7 +193,53 @@ def compile_pair_once(first: str, second: str, breadth: int, depth: int) -> dict
         "keyed": [{"key": key, "fields": fields} for key, fields in PAIR_KEYED.items()],
         "calls": calls,
         "final": final,
+        "stats": stats,
     }
+
+
+#: Score lists whose summaries a COPRO run cannot produce: the keyed model answers by question, so
+#: every candidate at a depth scores the same and every recorded `std` is `0.0` with `min == max`.
+#: A fixture built only from runs therefore cannot tell `pstdev` from the sample deviation, nor
+#: `average` from `max`, nor a top-ten slice from taking everything — it agrees by accident. These
+#: pin the arithmetic itself against Python's, which is where those three choices live.
+SUMMARY_CASES = [
+    ("one", [50.0]),
+    ("two_apart", [0.0, 100.0]),
+    ("three_uneven", [10.0, 20.0, 60.0]),
+    ("negative_and_zero", [-25.0, 0.0, 25.0]),
+    ("all_equal", [33.0, 33.0, 33.0]),
+    ("fifteen_descending", [float(100 - at) for at in range(15)]),
+    ("fifteen_ascending", [float(at) for at in range(15)]),
+    ("ties_across_the_cut", [5.0] * 12 + [1.0] * 3),
+]
+
+
+def summarised(scores: list[float]) -> dict:
+    """dspy's five numbers for one depth, from the same stdlib calls COPRO makes."""
+    return {
+        "max": max(scores),
+        "average": sum(scores) / len(scores),
+        "min": min(scores),
+        "std": statistics.pstdev(scores),
+    }
+
+
+def summaries() -> list[dict]:
+    rows = []
+    for name, scores in SUMMARY_CASES:
+        # `results_best` slices the top ten of a descending sort, which is the other rule a run
+        # cannot exercise: no depth here ever evaluates more than a handful of candidates.
+        top_ten = sorted(scores, reverse=True)[:10]
+        rows.append(
+            {
+                "name": name,
+                "scores": scores,
+                "summary": summarised(scores),
+                "top_ten": top_ten,
+                "top_ten_summary": summarised(top_ten),
+            }
+        )
+    return rows
 
 
 def main() -> None:
@@ -165,6 +251,7 @@ def main() -> None:
         "source": f"generated from dspy=={PINNED} via scripts/generate_copro_fixture.py",
         "dspy_version": PINNED,
         "cases": cases,
+        "summaries": summaries(),
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "copro.json"

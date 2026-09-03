@@ -1,0 +1,79 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_infer_rules_fixture.py",
+  "demos": [
+    {
+      "question": "capital of France?",
+      "hint": "europe",
+      "answer": "Paris",
+      "extra": "ignored"
+    },
+    {
+      "question": "capital of Peru?",
+      "hint": "south america",
+      "answer": "Lima"
+    },
+    {
+      "question": "capital of Chad?",
+      "hint": "africa"
+    },
+    {
+      "question": "how many?",
+      "hint": 3,
+      "answer": null
+    }
+  ],
+  "formatted_examples": "Input Fields:\nquestion: capital of France?\nhint: europe\n\n=========\nOutput Fields:\nanswer: Paris\n\nInput Fields:\nquestion: capital of Peru?\nhint: south america\n\n=========\nOutput Fields:\nanswer: Lima\n\nInput Fields:\nquestion: capital of Chad?\nhint: africa\n\n=========\nOutput Fields:\n\n\nInput Fields:\nquestion: how many?\nhint: 3\n\n=========\nOutput Fields:\nanswer: None\n\n",
+  "narrowed_demos": [
+    {
+      "question": "capital of France?",
+      "hint": "europe",
+      "answer": "Paris"
+    },
+    {
+      "question": "capital of Peru?",
+      "hint": "south america",
+      "answer": "Lima"
+    },
+    {
+      "question": "capital of Chad?",
+      "hint": "africa"
+    },
+    {
+      "question": "how many?",
+      "hint": 3,
+      "answer": null
+    }
+  ],
+  "instruction_before": "Given the fields `question`, `hint`, produce the fields `answer`.",
+  "instruction_after": "Given the fields `question`, `hint`, produce the fields `answer`.\n\nPlease adhere to the following rules when making your prediction:\n1. Be brief.\n2. Be exact.",
+  "induction_instructions": {
+    "1": "Given a set of examples, extract a list of 1 concise and non-redundant natural language rules that provide clear guidance for performing the task. All rules should be actionable for a well-specified scope of examples of this general kind of task.",
+    "7": "Given a set of examples, extract a list of 7 concise and non-redundant natural language rules that provide clear guidance for performing the task. All rules should be actionable for a well-specified scope of examples of this general kind of task.",
+    "10": "Given a set of examples, extract a list of 10 concise and non-redundant natural language rules that provide clear guidance for performing the task. All rules should be actionable for a well-specified scope of examples of this general kind of task."
+  },
+  "rollout_ids": [
+    906691059,
+    413653999,
+    813847339,
+    955892128,
+    451585301,
+    43469773,
+    278009742,
+    548977048,
+    521760889,
+    434794718,
+    985946604,
+    841597326
+  ],
+  "train_size_for_length": {
+    "0": 0,
+    "1": 0,
+    "2": 1,
+    "3": 1,
+    "4": 2,
+    "5": 2,
+    "9": 4,
+    "10": 5,
+    "11": 5
+  }
+}

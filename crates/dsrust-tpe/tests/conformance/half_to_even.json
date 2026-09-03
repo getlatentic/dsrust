@@ -1,0 +1,78 @@
+{
+  "source": "generated from numpy==2.5.1 via scripts/generate_half_to_even_fixture.py",
+  "note": "`np.round` is half-to-even; Rust's `f64::round` is half-away-from-zero.",
+  "cases": [
+    {
+      "value": -3.0,
+      "rounded": -3.0
+    },
+    {
+      "value": -2.5,
+      "rounded": -2.0
+    },
+    {
+      "value": -1.5,
+      "rounded": -2.0
+    },
+    {
+      "value": -0.5,
+      "rounded": -0.0
+    },
+    {
+      "value": -0.49999999999999994,
+      "rounded": -0.0
+    },
+    {
+      "value": -0.1,
+      "rounded": -0.0
+    },
+    {
+      "value": 0.0,
+      "rounded": 0.0
+    },
+    {
+      "value": 0.1,
+      "rounded": 0.0
+    },
+    {
+      "value": 0.49999999999999994,
+      "rounded": 0.0
+    },
+    {
+      "value": 0.5,
+      "rounded": 0.0
+    },
+    {
+      "value": 0.5000000000000001,
+      "rounded": 1.0
+    },
+    {
+      "value": 1.4999999999999998,
+      "rounded": 1.0
+    },
+    {
+      "value": 1.5,
+      "rounded": 2.0
+    },
+    {
+      "value": 2.0,
+      "rounded": 2.0
+    },
+    {
+      "value": 2.5,
+      "rounded": 2.0
+    },
+    {
+      "value": 3.5,
+      "rounded": 4.0
+    },
+    {
+      "value": 4.5,
+      "rounded": 4.0
+    },
+    {
+      "value": 1000000000000000.5,
+      "rounded": 1000000000000000.0
+    }
+  ]
+}

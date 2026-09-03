@@ -1,0 +1,40 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
+  "instructions": "You are an instruction optimizer for large language models. I will give some task instructions I've tried, along with their corresponding validation scores. The instructions are arranged in increasing order based on their scores, where higher scores indicate better quality.\n\nYour task is to propose a new instruction that will lead a good language model to perform the task even better. Don't be afraid to be creative.",
+  "inputs": [
+    {
+      "name": "attempted_instructions",
+      "kind": "str",
+      "desc": "${attempted_instructions}"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "proposed_instruction",
+      "kind": "str",
+      "desc": "The improved instructions for the language model"
+    },
+    {
+      "name": "proposed_prefix_for_output_field",
+      "kind": "str",
+      "desc": "The string at the end of the prompt, which will help the model start solving the task"
+    }
+  ],
+  "module": "predict",
+  "demos": [],
+  "values": {
+    "attempted_instructions": [
+      "Instruction #1: Answer the question.",
+      "Prefix #1: Answer:",
+      "Resulting Score #1: 0.5"
+    ]
+  },
+  "expected_system": "Your input fields are:\n1. `attempted_instructions` (str):\nYour output fields are:\n1. `proposed_instruction` (str): The improved instructions for the language model\n2. `proposed_prefix_for_output_field` (str): The string at the end of the prompt, which will help the model start solving the task\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## attempted_instructions ## ]]\n{attempted_instructions}\n\n[[ ## proposed_instruction ## ]]\n{proposed_instruction}\n\n[[ ## proposed_prefix_for_output_field ## ]]\n{proposed_prefix_for_output_field}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        You are an instruction optimizer for large language models. I will give some task instructions I've tried, along with their corresponding validation scores. The instructions are arranged in increasing order based on their scores, where higher scores indicate better quality.\n        \n        Your task is to propose a new instruction that will lead a good language model to perform the task even better. Don't be afraid to be creative.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## attempted_instructions ## ]]\n[1] «Instruction #1: Answer the question.»\n[2] «Prefix #1: Answer:»\n[3] «Resulting Score #1: 0.5»\n\nRespond with the corresponding output fields, starting with the field `[[ ## proposed_instruction ## ]]`, then `[[ ## proposed_prefix_for_output_field ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}

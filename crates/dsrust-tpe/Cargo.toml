@@ -1,0 +1,18 @@
+[package]
+name = "dsrust-tpe"
+version = "0.1.0-alpha.3"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/getlatentic/dsrust"
+authors = ["Tosin Amuda"]
+include = ["src/**/*"]
+description = "A faithful Rust reproduction of optuna's TPESampler over categorical distributions, as dspy's MIPROv2 uses it."
+
+[lib]
+name = "tpe"
+
+[dependencies]
+pyrng = { version = "0.1.0-alpha.3", path = "../pyrng" }
+
+[dev-dependencies]
+serde_json = { version = "1", features = ["float_roundtrip"] }

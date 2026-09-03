@@ -25,7 +25,7 @@ import sys
 import dspy
 from dspy.utils.dummies import DummyLM
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 # `scripted::trainset()`: two the table solves and four it does not, so a validation set is left
@@ -195,15 +195,14 @@ def demo_report(predictor) -> list[dict]:
     Which fields those are is itself the evidence once a program has more than one predictor: a
     demo the drafting half earned names a draft, and one the answering half earned does not name
     a question. `augmented` marks a demo the teacher earned rather than one drawn from the
-    trainset, so it is recorded even though the Rust port deliberately drops the marker.
+    trainset, and whether the key is *there at all* is the distinction — dspy sets it only on the
+    trace demos, so a labelled demo carries no such key.
+
+    This used to add `augmented: False` to every demo that lacked it, which invented a field dspy
+    does not write. The port dropped the marker entirely at the time, so the comparison filtered it
+    out and nobody saw the invention.
     """
-    return [
-        {
-            **{name: value for name, value in demo.toDict().items() if name != "augmented"},
-            "augmented": bool(demo.get("augmented", False)),
-        }
-        for demo in predictor.demos
-    ]
+    return [dict(demo.toDict()) for demo in predictor.demos]
 
 
 def demos_shown(messages: list[dict]) -> list[str]:

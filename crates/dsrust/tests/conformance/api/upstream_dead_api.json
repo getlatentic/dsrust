@@ -1,0 +1,30 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_upstream_dead_api_fixture.py",
+  "note": "Each entry was constructed, not read. A null `raises` means upstream repaired the name and the module is a port backlog item again.",
+  "entries": [
+    {
+      "module": "predict/avatar/avatar.py",
+      "name": "Avatar",
+      "exported_from_dspy_teleprompt": false,
+      "expected_exported": false,
+      "raises": "AttributeError",
+      "message": "module 'dspy' has no attribute 'TypedPredictor'"
+    },
+    {
+      "module": "teleprompt/avatar_optimizer.py",
+      "name": "AvatarOptimizer",
+      "exported_from_dspy_teleprompt": true,
+      "expected_exported": true,
+      "raises": "AttributeError",
+      "message": "module 'dspy' has no attribute 'TypedPredictor'"
+    },
+    {
+      "module": "teleprompt/signature_opt.py",
+      "name": "SignatureOptimizer",
+      "exported_from_dspy_teleprompt": false,
+      "expected_exported": false,
+      "raises": "TypeError",
+      "message": "COPRO.__init__() takes from 1 to 7 positional arguments but 8 were given"
+    }
+  ]
+}

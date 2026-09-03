@@ -1,0 +1,115 @@
+{
+  "source": "dspy==3.3.0 teleprompt/simba_utils.py::OfferFeedback",
+  "dspy_version": "3.3.0",
+  "note": "SIMBA's `OfferFeedback`, which shares a name with `refine.py`'s and is a different signature. Recorded ahead of the port, with the rendered prompt so the field order and every description are compared as bytes.",
+  "signature": {
+    "instructions": "You will be given two trajectories of an LLM-driven program's execution. Your goal is to help the program's modules\nbuild up experience on how to maximize the reward value assigned to the program's outputs if it were to receive\nsimilar inputs in the future.\n\nThe module won't see its own history. It will rely on your advice balancing being concrete and being generalizable.\n\nIn your advice:\n- Avoid boilerplate. Offer advice that would change the module's behavior for the better in the future.\n- Ensure that advice offered to a module M is specific to that M's specific sub-task, not the overall program.\n- Rely on contrasting the behavior of the worse trajectory against the better trajectory in making recommendations.\n- Ensure each unique module name appears exactly once as a key in the advice dictionary.",
+    "inputs": [
+      {
+        "name": "program_code",
+        "desc": "The code of the program that we are analyzing",
+        "annotation": "str"
+      },
+      {
+        "name": "modules_defn",
+        "desc": "The definition of each module in the program, including its I/O",
+        "annotation": "str"
+      },
+      {
+        "name": "program_inputs",
+        "desc": "The inputs to the program that we are analyzing",
+        "annotation": "str"
+      },
+      {
+        "name": "oracle_metadata",
+        "desc": "Any (hidden) metadata about the training set instance we're analyzing",
+        "annotation": "str"
+      },
+      {
+        "name": "worse_program_trajectory",
+        "desc": "The trajectory of the program's execution, showing each module's I/O",
+        "annotation": "str"
+      },
+      {
+        "name": "worse_program_outputs",
+        "desc": "The outputs of the program that we are analyzing",
+        "annotation": "str"
+      },
+      {
+        "name": "worse_reward_value",
+        "desc": "The reward value assigned to the program's outputs",
+        "annotation": "float"
+      },
+      {
+        "name": "worse_reward_info",
+        "desc": "Additional information that might be helpful to understanding the assigned reward value.",
+        "annotation": "str"
+      },
+      {
+        "name": "better_program_trajectory",
+        "desc": "The trajectory of the program's execution, showing each module's I/O",
+        "annotation": "str"
+      },
+      {
+        "name": "better_program_outputs",
+        "desc": "The outputs of the program that we are analyzing",
+        "annotation": "str"
+      },
+      {
+        "name": "better_reward_value",
+        "desc": "The reward value assigned to the program's outputs",
+        "annotation": "float"
+      },
+      {
+        "name": "better_reward_info",
+        "desc": "Additional information that might be helpful to understanding the assigned reward value.",
+        "annotation": "str"
+      },
+      {
+        "name": "module_names",
+        "desc": "The names of the modules in the program, for which we seek advice",
+        "annotation": "list"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "discussion",
+        "desc": "Discussing blame of where each module went wrong, if it did",
+        "annotation": "str"
+      },
+      {
+        "name": "module_advice",
+        "desc": "For each module, describe very concretely: If the module receives ${description of input or patterns therein}, then it should ${description of content, behavior, or strategies to adopt and/or others to avoid}. Basically, your advice be such that if the module has access to your tip, it would be much more likely to act like the successful trajectory rather than the lower-scoring trajectory.",
+        "annotation": "dict"
+      }
+    ]
+  },
+  "refine_signature_field_count": 9,
+  "inspect_modules_matches_refines": true,
+  "inspect_modules": "--------------------------------------------------------------------------------\nModule self\n\tInput Fields:\n\t\t1. `question` (str):\n\tOutput Fields:\n\t\t1. `answer` (str):\n\tOriginal Instructions: \n\t\tGiven the fields `question`, produce the fields `answer`.\n--------------------------------------------------------------------------------",
+  "filled_inputs": {
+    "program_code": "class Program(dspy.Module): ...",
+    "modules_defn": "Module predict\n\tInput Fields:\n\t\t1. `question`",
+    "program_inputs": "{\n  \"question\": \"capital of Spain?\"\n}",
+    "oracle_metadata": "{\n  \"answer\": \"Madrid\"\n}",
+    "worse_program_trajectory": "[\n  {\"module_name\": \"predict\"}\n]",
+    "worse_program_outputs": "{\n  \"answer\": \"Barcelona\"\n}",
+    "worse_reward_value": 0.0,
+    "worse_reward_info": "{}",
+    "better_program_trajectory": "[\n  {\"module_name\": \"predict\"}\n]",
+    "better_program_outputs": "{\n  \"answer\": \"Madrid\"\n}",
+    "better_reward_value": 1.0,
+    "better_reward_info": "{}",
+    "module_names": "[\n  \"predict\"\n]"
+  },
+  "rendered": [
+    {
+      "role": "system",
+      "content": "Your input fields are:\n1. `program_code` (str): The code of the program that we are analyzing\n2. `modules_defn` (str): The definition of each module in the program, including its I/O\n3. `program_inputs` (str): The inputs to the program that we are analyzing\n4. `oracle_metadata` (str): Any (hidden) metadata about the training set instance we're analyzing\n5. `worse_program_trajectory` (str): The trajectory of the program's execution, showing each module's I/O\n6. `worse_program_outputs` (str): The outputs of the program that we are analyzing\n7. `worse_reward_value` (float): The reward value assigned to the program's outputs\n8. `worse_reward_info` (str): Additional information that might be helpful to understanding the assigned reward value.\n9. `better_program_trajectory` (str): The trajectory of the program's execution, showing each module's I/O\n10. `better_program_outputs` (str): The outputs of the program that we are analyzing\n11. `better_reward_value` (float): The reward value assigned to the program's outputs\n12. `better_reward_info` (str): Additional information that might be helpful to understanding the assigned reward value.\n13. `module_names` (list[str]): The names of the modules in the program, for which we seek advice\nYour output fields are:\n1. `discussion` (str): Discussing blame of where each module went wrong, if it did\n2. `module_advice` (dict[str, str]): For each module, describe very concretely: If the module receives ${description of input or patterns therein}, then it should ${description of content, behavior, or strategies to adopt and/or others to avoid}. Basically, your advice be such that if the module has access to your tip, it would be much more likely to act like the successful trajectory rather than the lower-scoring trajectory.\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## program_code ## ]]\n{program_code}\n\n[[ ## modules_defn ## ]]\n{modules_defn}\n\n[[ ## program_inputs ## ]]\n{program_inputs}\n\n[[ ## oracle_metadata ## ]]\n{oracle_metadata}\n\n[[ ## worse_program_trajectory ## ]]\n{worse_program_trajectory}\n\n[[ ## worse_program_outputs ## ]]\n{worse_program_outputs}\n\n[[ ## worse_reward_value ## ]]\n{worse_reward_value}\n\n[[ ## worse_reward_info ## ]]\n{worse_reward_info}\n\n[[ ## better_program_trajectory ## ]]\n{better_program_trajectory}\n\n[[ ## better_program_outputs ## ]]\n{better_program_outputs}\n\n[[ ## better_reward_value ## ]]\n{better_reward_value}\n\n[[ ## better_reward_info ## ]]\n{better_reward_info}\n\n[[ ## module_names ## ]]\n{module_names}\n\n[[ ## discussion ## ]]\n{discussion}\n\n[[ ## module_advice ## ]]\n{module_advice}        # note: the value you produce must adhere to the JSON schema: {\"type\": \"object\", \"additionalProperties\": {\"type\": \"string\"}}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        You will be given two trajectories of an LLM-driven program's execution. Your goal is to help the program's modules\n        build up experience on how to maximize the reward value assigned to the program's outputs if it were to receive\n        similar inputs in the future.\n        \n        The module won't see its own history. It will rely on your advice balancing being concrete and being generalizable.\n        \n        In your advice:\n        - Avoid boilerplate. Offer advice that would change the module's behavior for the better in the future.\n        - Ensure that advice offered to a module M is specific to that M's specific sub-task, not the overall program.\n        - Rely on contrasting the behavior of the worse trajectory against the better trajectory in making recommendations.\n        - Ensure each unique module name appears exactly once as a key in the advice dictionary."
+    },
+    {
+      "role": "user",
+      "content": "[[ ## program_code ## ]]\nclass Program(dspy.Module): ...\n\n[[ ## modules_defn ## ]]\nModule predict\n\tInput Fields:\n\t\t1. `question`\n\n[[ ## program_inputs ## ]]\n{\n  \"question\": \"capital of Spain?\"\n}\n\n[[ ## oracle_metadata ## ]]\n{\n  \"answer\": \"Madrid\"\n}\n\n[[ ## worse_program_trajectory ## ]]\n[\n  {\"module_name\": \"predict\"}\n]\n\n[[ ## worse_program_outputs ## ]]\n{\n  \"answer\": \"Barcelona\"\n}\n\n[[ ## worse_reward_value ## ]]\n0.0\n\n[[ ## worse_reward_info ## ]]\n{}\n\n[[ ## better_program_trajectory ## ]]\n[\n  {\"module_name\": \"predict\"}\n]\n\n[[ ## better_program_outputs ## ]]\n{\n  \"answer\": \"Madrid\"\n}\n\n[[ ## better_reward_value ## ]]\n1.0\n\n[[ ## better_reward_info ## ]]\n{}\n\n[[ ## module_names ## ]]\n[\n  \"predict\"\n]\n\nRespond with the corresponding output fields, starting with the field `[[ ## discussion ## ]]`, then `[[ ## module_advice ## ]]` (must be formatted as a valid Python dict[str, str]), and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}

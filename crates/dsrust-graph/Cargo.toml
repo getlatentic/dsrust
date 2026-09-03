@@ -1,0 +1,25 @@
+[package]
+name = "dsrust-graph"
+# Its own first alpha rather than the set's third: the six crates around it carry a number that
+# records their publishing history, and this one has none.
+version = "0.1.0-alpha.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Building a dsrust program from a graph a user wired at run time."
+readme = "README.md"
+keywords = ["dspy", "llm", "graph", "prompt", "ai"]
+categories = ["science", "api-bindings"]
+repository = "https://github.com/getlatentic/dsrust"
+
+[dependencies]
+dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
+# The document type is this crate's own, so its derives are this crate's to depend on. `serde_json`
+# is not here for the same reason it is not in a caller's manifest: every reach is through
+# `dsrust::serde_json`, which is what dsrust re-exports it for.
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Only the tests and `examples/run.rs` await anything — `src/` names no tokio type. As a normal
+# dependency this handed every consumer a runtime and a scheduler, which is the choice dsrust
+# deliberately leaves to its caller.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

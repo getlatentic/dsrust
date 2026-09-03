@@ -1,0 +1,203 @@
+{
+  "source": "generated from dspy==3.3.0 + gepa==0.1.1 via scripts/generate_gepa_optimize_fixture.py",
+  "dspy_version": "3.3.0",
+  "gepa_version": "0.1.1",
+  "trainset": [
+    {
+      "question": "capital of France?",
+      "answer": "Paris"
+    },
+    {
+      "question": "capital of Germany?",
+      "answer": "Berlin"
+    },
+    {
+      "question": "capital of Spain?",
+      "answer": "Madrid"
+    }
+  ],
+  "profiles": {
+    "1": [
+      "capital of France?"
+    ],
+    "2": [
+      "capital of Germany?"
+    ],
+    "3": [
+      "capital of France?",
+      "capital of Germany?"
+    ],
+    "4": [
+      "capital of France?",
+      "capital of Germany?",
+      "capital of Spain?"
+    ]
+  },
+  "cases": [
+    {
+      "seed_instruction": "Answer the question.",
+      "minibatch_size": 2,
+      "max_metric_calls": 8,
+      "seed": 0,
+      "reflection_calls": 1,
+      "proposals": [
+        "Answer with GOOD-1 precision."
+      ],
+      "candidates": [
+        "Answer the question.",
+        "Answer with GOOD-1 precision."
+      ],
+      "parents": [
+        [],
+        [
+          0
+        ]
+      ],
+      "val_aggregate_scores": [
+        0.0,
+        0.3333333333333333
+      ],
+      "best_idx": 1,
+      "discovery_eval_counts": [
+        0,
+        7
+      ],
+      "num_full_val_evals": 2,
+      "total_metric_calls": 10,
+      "compiled_instruction": "Answer with GOOD-1 precision."
+    },
+    {
+      "seed_instruction": "Answer the question.",
+      "minibatch_size": 2,
+      "max_metric_calls": 8,
+      "seed": 2,
+      "reflection_calls": 2,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision."
+      ],
+      "candidates": [
+        "Answer the question."
+      ],
+      "parents": [
+        []
+      ],
+      "val_aggregate_scores": [
+        0.0
+      ],
+      "best_idx": 0,
+      "discovery_eval_counts": [
+        0
+      ],
+      "num_full_val_evals": 1,
+      "total_metric_calls": 11,
+      "compiled_instruction": "Answer the question."
+    },
+    {
+      "seed_instruction": "Respond to the query.",
+      "minibatch_size": 2,
+      "max_metric_calls": 12,
+      "seed": 0,
+      "reflection_calls": 2,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision."
+      ],
+      "candidates": [
+        "Respond to the query.",
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision."
+      ],
+      "parents": [
+        [],
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "val_aggregate_scores": [
+        0.0,
+        0.3333333333333333,
+        0.3333333333333333
+      ],
+      "best_idx": 1,
+      "discovery_eval_counts": [
+        0,
+        7,
+        14
+      ],
+      "num_full_val_evals": 3,
+      "total_metric_calls": 17,
+      "compiled_instruction": "Answer with GOOD-1 precision."
+    },
+    {
+      "seed_instruction": "Answer the question.",
+      "minibatch_size": 2,
+      "max_metric_calls": 12,
+      "seed": 2,
+      "reflection_calls": 3,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision."
+      ],
+      "candidates": [
+        "Answer the question.",
+        "Answer with GOOD-3 precision."
+      ],
+      "parents": [
+        [],
+        [
+          0
+        ]
+      ],
+      "val_aggregate_scores": [
+        0.0,
+        0.6666666666666666
+      ],
+      "best_idx": 1,
+      "discovery_eval_counts": [
+        0,
+        15
+      ],
+      "num_full_val_evals": 2,
+      "total_metric_calls": 18,
+      "compiled_instruction": "Answer with GOOD-3 precision."
+    },
+    {
+      "seed_instruction": "Solve it.",
+      "minibatch_size": 2,
+      "max_metric_calls": 14,
+      "seed": 1,
+      "reflection_calls": 2,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision."
+      ],
+      "candidates": [
+        "Solve it.",
+        "Answer with GOOD-1 precision."
+      ],
+      "parents": [
+        [],
+        [
+          0
+        ]
+      ],
+      "val_aggregate_scores": [
+        0.0,
+        0.3333333333333333
+      ],
+      "best_idx": 1,
+      "discovery_eval_counts": [
+        0,
+        7
+      ],
+      "num_full_val_evals": 2,
+      "total_metric_calls": 14,
+      "compiled_instruction": "Answer with GOOD-1 precision."
+    }
+  ]
+}

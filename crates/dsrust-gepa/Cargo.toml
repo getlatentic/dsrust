@@ -1,0 +1,24 @@
+[package]
+name = "dsrust-gepa"
+version = "0.1.0-alpha.3"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/getlatentic/dsrust"
+authors = ["Tosin Amuda"]
+include = ["src/**/*"]
+description = "A Rust reproduction of GEPA's reflective prompt-evolution engine (the gepa package dspy wraps): Pareto-front candidate selection, the evolution loop, behind an adapter trait."
+
+[lib]
+name = "gepa"
+
+[dependencies]
+pyrng = { version = "0.1.0-alpha.3", path = "../pyrng" }
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+
+[dev-dependencies]
+# `float_roundtrip`: the default parser is best-effort and loses the last bit of a
+# 17-significant-digit float, so a golden recorded from Python's `repr` came back as a
+# different f64 — 0.37331193139504204 parsed as 0.3733119313950421. Every golden here is
+# compared exactly, so best-effort is not an option.
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+tokio = { version = "1", features = ["macros", "rt"] }

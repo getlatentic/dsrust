@@ -26,7 +26,7 @@ import struct
 import sys
 from math import ceil, log
 
-OUT = pathlib.Path(__file__).parent.parent / "pyrng" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "pyrng" / "tests" / "conformance"
 
 # The canonical `mt19937ar.c` demonstration: `init_by_array` over this key, then a thousand
 # consecutive draws. Its published output is the reference every Mersenne Twister is checked

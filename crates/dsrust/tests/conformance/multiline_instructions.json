@@ -1,0 +1,31 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
+  "instructions": "Answer the question.\nBe brief.\nNever guess.",
+  "inputs": [
+    {
+      "name": "question",
+      "kind": "str",
+      "desc": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "answer",
+      "kind": "str",
+      "desc": null
+    }
+  ],
+  "module": "predict",
+  "demos": [],
+  "values": {
+    "question": "Why is the sky blue?"
+  },
+  "expected_system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer the question.\n        Be brief.\n        Never guess.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## question ## ]]\nWhy is the sky blue?\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}

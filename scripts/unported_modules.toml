@@ -1,0 +1,96 @@
+# Every dspy module the pinned submodule defines that `api_surface.py`'s PORTED_MODULES does *not*
+# claim. `check_unported_modules.py` keeps the two lists exhaustive and disjoint: a module in
+# neither is a gate failure, so a new upstream file cannot arrive unclassified and a ported module
+# cannot be quietly listed twice.
+#
+# This table exists because the reason a module was out of scope used to live in a docstring
+# parenthetical — "not ported (KNN, the avatar/simba optimizers)" — which no rule read and which
+# went stale the day SIMBA landed. 137 public symbols sat outside every gate with no written
+# justification, so the ledger's own denominator was a claim rather than a measurement.
+#
+# status = "backlog"       — in scope for 1.0, not ported yet. Ratcheted: the count may fall, never
+#                            rise, so a new upstream module lands as backlog or as a decision.
+# status = "upstream_dead" — public API that raises before doing anything in the pinned dspy, so
+#                            there is no behaviour to be faithful to. `evidence` names the golden
+#                            that constructed it; if upstream repairs the name, the gate goes red
+#                            and the module becomes backlog again.
+# status = "dead_consumer" — constructible on its own, but every module in the pinned tree that
+#                            imports it is itself dead. `only_for` names them, and the gate reads
+#                            the imports rather than trusting the list.
+# status = "out_of_scope"  — a made decision, not a pending gap: finetuning/RL, local model
+#                            serving, third-party retrieval backends, dataset downloaders, and
+#                            Python-runtime plumbing with no Rust counterpart.
+# status = "no_surface"    — defines no public class or function of its own. Checked, not asserted:
+#                            the gate re-walks the module and fails if one appears.
+
+[modules]
+
+# ── no public surface of their own ────────────────────────────────────────────────────────────
+"__init__.py" = { status = "no_surface", reason = "the package root: a run of star-imports that make `Predict`, `Example` and the rest reachable as `dspy.X`. Every name it lists is classified where it is defined" }
+"__metadata__.py" = { status = "no_surface", reason = "assignments only — `__version__` is `3.3.0b1` here, which is the string `pins.require` matches the submodule against" }
+"adapters/__init__.py" = { status = "no_surface", reason = "re-exports `Adapter`, `ChatAdapter`, `JSONAdapter` and the rest, each classified in its own module" }
+"adapters/_legacy_type_markers.py" = { status = "no_surface", reason = "private by name: unpickling shims that keep `CUSTOM_TYPE_START_IDENTIFIER` resolvable for objects saved before the custom types moved" }
+"adapters/types/__init__.py" = { status = "no_surface", reason = "re-exports `Audio`, `Type`, `Code` and the other custom types, each classified in its own module" }
+"core/__init__.py" = { status = "no_surface", reason = "star-imports `dspy.core.types` and forwards its `__all__`" }
+"datasets/__init__.py" = { status = "no_surface", reason = "re-exports `AlfWorld`, `Colors`, `DataLoader` and the other bundled loaders" }
+"datasets/alfworld/__init__.py" = { status = "no_surface", reason = "re-exports `AlfWorld`" }
+"dsp/__init__.py" = { status = "no_surface", reason = "a zero-byte file; the pre-2.0 package root, kept so `Settings` stays importable by its old path" }
+"dsp/utils/__init__.py" = { status = "no_surface", reason = "star-imports `dspy.dsp.utils.settings` and its neighbours, so `Settings` is reachable by the old path" }
+"evaluate/__init__.py" = { status = "no_surface", reason = "re-exports `Evaluate` and the metrics" }
+"experimental/__init__.py" = { status = "no_surface", reason = "re-exports `Citations` and `Document`, both classified with the custom types" }
+"predict/__init__.py" = { status = "no_surface", reason = "re-exports `majority`, `BestOfN`, `ChainOfThought` and the rest, each classified in its own module" }
+"predict/avatar/__init__.py" = { status = "no_surface", reason = "star-imports `Avatar`, `Actor` and the models — all three of those modules raise on construction" }
+"predict/flex/__init__.py" = { status = "no_surface", reason = "re-exports `Flex`" }
+"predict/flex/_sandbox_shim.py" = { status = "no_surface", reason = "private by name; the source injected into the sandbox interpreter, reproduced by `bridge::run` as a string rather than as API" }
+"predict/flex/primitives_doc.py" = { status = "no_surface", reason = "one string, `PRIMITIVES_CATALOG`: the module-authoring guide shown to the code proposer. Prompt bytes rather than API, held with the other proposal text" }
+"predict/retry.py" = { status = "no_surface", reason = "sixty-one lines, none of them executable — the whole file is commented out, including its imports. A retained sketch of a `Retry` module" }
+"primitives/__init__.py" = { status = "no_surface", reason = "re-exports `BaseModule`, `Example`, `CodeInterpreter` and the rest, each classified in its own module" }
+"propose/__init__.py" = { status = "no_surface", reason = "re-exports `GroundedProposer`" }
+"retrievers/__init__.py" = { status = "no_surface", reason = "re-exports `Embeddings` and `Retrieve`, both out of scope" }
+"signatures/__init__.py" = { status = "no_surface", reason = "re-exports `Signature` and the field constructors" }
+"streaming/__init__.py" = { status = "no_surface", reason = "re-exports `StreamResponse`, `streamify`, `StreamListener` and the rest, each classified in its own module" }
+"teleprompt/__init__.py" = { status = "no_surface", reason = "re-exports `BootstrapFewShot`, `MIPROv2`, `GEPA` and the rest, each classified in its own module — `AvatarOptimizer` among them, which raises on construction" }
+"teleprompt/gepa/__init__.py" = { status = "no_surface", reason = "re-exports `GEPA`" }
+"utils/callback_context.py" = { status = "no_surface", reason = "one module-level `ContextVar`, `ACTIVE_CALL_ID`, carrying the id of the call a callback is inside so a nested handler can name its parent. `CallId` carries both halves as one value here, and `callback/context.rs` holds the same thread-local it is set in" }
+"utils/constants.py" = { status = "no_surface", reason = "one string constant, `IS_TYPE_UNDEFINED`, marking a signature field whose type was never declared" }
+
+# ── shipped, but raises before doing anything ─────────────────────────────────────────────────
+"predict/avatar/avatar.py" = { status = "upstream_dead", evidence = "api/upstream_dead_api.json", reason = "`Avatar.__init__` calls `dspy.TypedPredictor`, removed in dspy 2.6. Constructing one raises `AttributeError`, so the module has no behaviour a port could match — the tool loop, the per-iteration `action_1`/`result_1` signature growth and the `Finish` tool have never run in this release" }
+"predict/avatar/models.py" = { status = "dead_consumer", only_for = ["predict/avatar/avatar.py", "predict/avatar/signatures.py", "teleprompt/avatar_optimizer.py"], reason = "`Tool`, `Action` and `ActionOutput` are plain pydantic models and build fine; nothing live reaches them. Their importers in the pinned tree are `Avatar`, the `Actor` signature and `AvatarOptimizer`, and all three raise. `Tool` here is unrelated to the one in `adapters/types/tool.py`, which is ported" }
+"predict/avatar/signatures.py" = { status = "dead_consumer", only_for = ["predict/avatar/avatar.py"], reason = "`Actor`, the signature `Avatar` grows a field at a time. A class like any other, and never rendered: the only importer in the pinned tree is `Avatar`, which cannot be built" }
+"teleprompt/avatar_optimizer.py" = { status = "upstream_dead", evidence = "api/upstream_dead_api.json", reason = "exported in `dspy.teleprompt.__all__` and unconstructable: `__init__` reaches `dspy.TypedPredictor` for its `Comparator`. Its student must be an `Avatar`, which also raises, so neither half of the pair can run" }
+"teleprompt/signature_opt.py" = { status = "upstream_dead", evidence = "api/upstream_dead_api.json", reason = "deprecated in favour of COPRO and broken by that same move: `COPRO.__init__` dropped `verbose`, and this subclass still forwards seven positional arguments to a constructor taking six, so every call shape raises `TypeError`. COPRO itself is ported" }
+
+# ── decisions, not gaps ───────────────────────────────────────────────────────────────────────
+"clients/databricks.py" = { status = "out_of_scope", reason = "`DatabricksProvider` and `TrainingJobDatabricks`: finetuning against Databricks model serving" }
+"clients/lm_local.py" = { status = "out_of_scope", reason = "`LocalProvider`, `train_sft_locally` and `wait_for_server` start a local SGLang server as a subprocess and train against it — process supervision, not inference" }
+"clients/utils_finetune.py" = { status = "out_of_scope", reason = "`TrainDataFormat`, `validate_data_format` and `save_data`: training-data shapes for the finetuning path" }
+"clients/_litellm.py" = { status = "out_of_scope", reason = "`get_litellm` imports litellm lazily and `is_litellm_context_window_error` classifies its errors; this crate speaks to providers directly and has no litellm to defer" }
+"clients/disk_serialization.py" = { status = "out_of_scope", reason = "`restricted_disk` is a pickle subclass that refuses unknown globals, raising `DeserializationError`. This crate's cache is serde, which deserializes into declared types and so cannot be talked into constructing arbitrary objects" }
+"teleprompt/bootstrap_finetune.py" = { status = "out_of_scope", reason = "`BootstrapFinetune` launches training jobs and swaps the resulting weights in; `prepare_teacher` and `assert_structural_equivalency` serve that path" }
+"teleprompt/grpo.py" = { status = "out_of_scope", reason = "`GRPO`, reinforcement learning against a local trainer" }
+"retrievers/databricks_rm.py" = { status = "out_of_scope", reason = "`DatabricksRM`, a Databricks Vector Search client" }
+"retrievers/weaviate_rm.py" = { status = "out_of_scope", reason = "`WeaviateRM`, a Weaviate client" }
+"retrievers/retrieve.py" = { status = "out_of_scope", reason = "`Retrieve`, the legacy module reaching whatever retriever `Settings` holds" }
+"dsp/colbertv2.py" = { status = "out_of_scope", reason = "`ColBERTv2` is an HTTP client and `ColBERTv2RetrieverLocal` wraps a local index" }
+"datasets/alfworld/alfworld.py" = { status = "out_of_scope", reason = "`AlfWorld` and `EnvPool` wrap the ALFWorld text-game environment in a process pool" }
+"datasets/colors.py" = { status = "out_of_scope", reason = "`Colors`, a bundled toy dataset" }
+"datasets/dataloader.py" = { status = "out_of_scope", reason = "`DataLoader` reads HuggingFace datasets, CSV and parquet into `Example`s" }
+"datasets/dataset.py" = { status = "out_of_scope", reason = "`Dataset`, the train/dev/test splitter the bundled loaders share" }
+"datasets/gsm8k.py" = { status = "out_of_scope", reason = "`GSM8K` downloads the set and `gsm8k_metric` scores it" }
+"datasets/hotpotqa.py" = { status = "out_of_scope", reason = "`HotPotQA` downloads the set" }
+"datasets/math.py" = { status = "out_of_scope", reason = "`MATH` downloads the set and `extract_answer` scores it with sympy" }
+"utils/asyncify.py" = { status = "out_of_scope", reason = "`asyncify` runs a sync module on an anyio worker thread under `get_limiter`'s capacity limiter. Rust's async story is the caller's runtime, not a helper this crate ships" }
+"utils/syncify.py" = { status = "out_of_scope", reason = "`syncify` and `run_async` drive an async module from sync code through a private event loop" }
+"utils/unbatchify.py" = { status = "out_of_scope", reason = "`Unbatchify` collects concurrent calls into batches on a background thread" }
+"utils/magicattr.py" = { status = "out_of_scope", reason = "a vendored attribute-path resolver `named_parameters` uses to set `a.b[0].c` by string. Rust reaches submodules through the walk itself" }
+"utils/logging_utils.py" = { status = "out_of_scope", reason = "`configure_dspy_loggers` and `DSPyLoggingStream` configure Python's logging module and rich's handler; this crate emits `tracing` spans and leaves the subscriber to the caller" }
+"utils/annotation.py" = { status = "out_of_scope", reason = "`experimental`, the decorator `Citations`, `Document` and `Flex` carry: it rewrites a docstring and warns on call" }
+"utils/lazy_import.py" = { status = "out_of_scope", reason = "`require` defers an optional import until first use and `is_available` reports what is installed" }
+"utils/caching.py" = { status = "out_of_scope", reason = "`create_subdir_in_cachedir` makes a subdirectory under the dspy cache dir" }
+"utils/langchain_tool.py" = { status = "out_of_scope", reason = "`convert_langchain_tool` converts a LangChain tool into a dspy one" }
+"utils/__init__.py" = { status = "out_of_scope", reason = "`download` fetches a URL with a progress bar, for `HotPotQA` and the other bundled loaders" }
+"clients/__init__.py" = { status = "out_of_scope", reason = "`configure_cache` plus `enable_litellm_logging` and its opposite; the cache is configured through `Settings` here and there is no litellm logger to silence" }
+"dsp/utils/utils.py" = { status = "out_of_scope", reason = "the pre-2.0 grab bag — `dotdict`, `dotdict_lax`, `NullContextManager`, `groupby_first_item`. Nothing in the ported path imports it except `dotdict`, whose role is filled by named structs" }
+
+# ── in scope, not ported yet ──────────────────────────────────────────────────────────────────

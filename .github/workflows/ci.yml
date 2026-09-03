@@ -1,0 +1,104 @@
+# Two incidents in one day made the case for this: a stray `package.json` in a home directory turned
+# 27 upstream tests red, and a machine-wide cargo build directory once faked a mutation count. Both
+# were *machine state* deciding a result, and until now there was no second machine to disagree.
+# That is what these jobs are for — not only catching regressions, but separating "this repo is
+# green" from "this laptop is green".
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail on a warning here rather than in a reviewer's head.
+  RUSTFLAGS: -D warnings
+
+jobs:
+  # What a consumer actually gets, on the three platforms they might get it on. `dsrs-bridge` is
+  # excluded because it is not one: it is a PyO3 shim that exists only so DSPy's own pytest suite
+  # can drive this crate, it is `publish = false`, and nothing depends on it. Excluding it costs no
+  # coverage — the workspace suite reports the same test count either way, because the bridge
+  # contributes none of its own.
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Every platform reports, rather than the first failure hiding the other two — the whole
+      # point is finding out *which* of them disagrees.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: build
+        run: cargo build --all-targets --workspace --exclude dsrs-bridge
+      - name: test
+        run: cargo test --workspace --exclude dsrs-bridge
+
+  # The checks that are about the source rather than the platform, so once is enough.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --check
+      - name: docs build clean
+        run: cargo doc --no-deps --workspace --exclude dsrs-bridge
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: cursor-arithmetic loops
+        # The lint that exists because four separate loops advanced a cursor in a way a mutation
+        # could stall — a hang being the one failure no assertion reports.
+        run: |
+          cargo install ast-grep --locked
+          ast-grep scan --rule scripts/lints/cursor_arithmetic_loop.yml crates/
+
+  # The conformance half: DSPy's own pytest suite driven through the PyO3 bridge, plus the gates
+  # that need Python or Deno. Linux only — it is a development harness, not something a consumer
+  # builds, and the bridge's link arguments are the one place this repo is platform-shaped.
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `third_party/dspy` is the pinned tree the upstream suite runs from.
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v5
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          # The sandbox gate runs Pyodide through deno's npm cache. Without this every run
+          # re-downloads it before the ten sandbox tests can start.
+          cache: true
+      - name: install ast-grep and cargo-deny
+        # Both are gates the script runs, and a missing one is an exit 127 the gate reports as a
+        # failure without saying which check never ran.
+        run: |
+          cargo install ast-grep --locked
+          cargo install cargo-deny --locked
+      - name: python environment, pinned
+        run: uv sync
+      - name: gates
+        # The same script run by hand locally, so CI and a developer cannot drift into checking
+        # different things — `gates-were-a-checklist` is the story about what happens when they do.
+        run: ./scripts/run_rust_gates.sh
+      - name: the gates' recorded numbers are the numbers
+        # `run_rust_gates.sh` writes the observed test counts into `scripts/status.toml`, and
+        # renders README.md's line from them. A diff here means someone committed without running
+        # them, which is exactly the drift the recorder was added to stop — 48 behind by the time
+        # anyone last counted. The plan and the handoff are untracked, so a clone has neither and
+        # neither is diffed.
+        run: git diff --exit-code -- scripts/status.toml README.md

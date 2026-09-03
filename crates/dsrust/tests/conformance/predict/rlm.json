@@ -1,0 +1,369 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_rlm_fixture.py",
+  "dspy_version": "3.3.0",
+  "strip_code_fences": [
+    {
+      "written": "print(1)",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "  print(1)  ",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "\n\nprint(1)\n\n",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```py\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python3\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```py3\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```javascript\nconsole.log(1)\n```",
+      "code": null,
+      "error": "Expected Python code but got ```javascript fence. Write Python code, not javascript."
+    },
+    {
+      "written": "```json\n{}\n```",
+      "code": null,
+      "error": "Expected Python code but got ```json fence. Write Python code, not json."
+    },
+    {
+      "written": "```PYTHON\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python title=example\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```\n```python\nprint(1)\n```\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```\n```\n```python\nprint(1)\n```\n```\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "Here is the code:\n```python\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "Here is the code:\n```python\nprint(1)\n```\nAnd that is all.",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python print(1)```",
+      "code": "```python print(1)```",
+      "error": null
+    },
+    {
+      "written": "```python",
+      "code": "```python",
+      "error": null
+    },
+    {
+      "written": "",
+      "code": "",
+      "error": null
+    },
+    {
+      "written": "```\n```",
+      "code": "",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)\n```\n```python\nprint(2)\n```",
+      "code": "print(1)",
+      "error": null
+    }
+  ],
+  "signatures": [
+    {
+      "label": "plain",
+      "task": "context, query -> answer",
+      "task_instructions": "Given the fields `context`, `query`, produce the fields `answer`.",
+      "max_llm_calls": 50,
+      "tools": [],
+      "action": {
+        "instructions": "Given the fields `context`, `query`, produce the fields `answer`.\n\nYou are tasked with producing the following outputs given the inputs `context`, `query`:\n- {answer}\n\nYou have access to a Python REPL environment. Write Python code and it will be executed. You will see the output, then write more code based on what you learned. This is an iterative process.\n\nAvailable:\n- Variables: `context`, `query` (your input data)\n- `llm_query(prompt)` - query a sub-LLM (~500K char capacity) for semantic analysis\n- `llm_query_batched(prompts)` - query multiple prompts concurrently (much faster for multiple queries)\n- `print()` - ALWAYS print to see results\n- `SUBMIT(answer)` - submit final output when done\n- Standard libraries: re, json, collections, math, etc.\n\nIMPORTANT: This is ITERATIVE. Each code block you write will execute, you'll see the output, then you decide what to do next. Do NOT try to solve everything in one step.\n\n1. EXPLORE FIRST - Look at your data before processing it. Print samples, check types/lengths, understand the structure.\n2. ITERATE - Write small code snippets, observe outputs, then decide next steps. State persists between iterations.\n3. VERIFY BEFORE SUBMITTING - If results seem wrong (zeros, empty, unexpected), reconsider your approach.\n4. USE llm_query FOR SEMANTICS - String matching finds WHERE things are; llm_query understands WHAT things mean.\n5. MINIMIZE RETYPING (INPUTS & OUTPUTS) - When values are long, precise, or error-prone (IDs, numbers, code, quotes), re-access them via variables and parse/compute in code instead of retyping. Use small, targeted prints to sanity-check, but avoid manual copying when variables can carry the exact value.\n6. SUBMIT ONLY AFTER SEEING OUTPUTS - SUBMIT ends the current run immediately. If you need to inspect printed output, run it in one step, review the result, then call SUBMIT in a later step.\n\nYou have max 50 sub-LLM calls. When done, call SUBMIT() with your output.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Previous REPL code executions and their outputs",
+            "annotation": "REPLHistory"
+          },
+          {
+            "name": "iteration",
+            "desc": "Current iteration number (1-indexed) out of max_iters",
+            "annotation": "str"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": "Think step-by-step: what do you know? What remains? Plan your next action.",
+            "annotation": "str"
+          },
+          {
+            "name": "code",
+            "desc": "Python code to execute. Use markdown code block format: ```python\\n<code>\\n```",
+            "annotation": "str"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "The trajectory was generated with the following objective: \nGiven the fields `context`, `query`, produce the fields `answer`.\n\n\nBased on the REPL trajectory, extract the final outputs now.\n\n            Review your trajectory to see what information you gathered and what values you computed, then provide the final outputs.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Your REPL interactions so far",
+            "annotation": "REPLHistory"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "answer",
+            "desc": "",
+            "annotation": "str"
+          }
+        ]
+      }
+    },
+    {
+      "label": "described",
+      "task": "Described",
+      "task_instructions": "Answer from the context.",
+      "max_llm_calls": 50,
+      "tools": [],
+      "action": {
+        "instructions": "Answer from the context.\n\nYou are tasked with producing the following outputs given the inputs `context`:\n- {answer}\n\nYou have access to a Python REPL environment. Write Python code and it will be executed. You will see the output, then write more code based on what you learned. This is an iterative process.\n\nAvailable:\n- Variables: `context` (your input data)\n- `llm_query(prompt)` - query a sub-LLM (~500K char capacity) for semantic analysis\n- `llm_query_batched(prompts)` - query multiple prompts concurrently (much faster for multiple queries)\n- `print()` - ALWAYS print to see results\n- `SUBMIT(answer)` - submit final output when done\n- Standard libraries: re, json, collections, math, etc.\n\nIMPORTANT: This is ITERATIVE. Each code block you write will execute, you'll see the output, then you decide what to do next. Do NOT try to solve everything in one step.\n\n1. EXPLORE FIRST - Look at your data before processing it. Print samples, check types/lengths, understand the structure.\n2. ITERATE - Write small code snippets, observe outputs, then decide next steps. State persists between iterations.\n3. VERIFY BEFORE SUBMITTING - If results seem wrong (zeros, empty, unexpected), reconsider your approach.\n4. USE llm_query FOR SEMANTICS - String matching finds WHERE things are; llm_query understands WHAT things mean.\n5. MINIMIZE RETYPING (INPUTS & OUTPUTS) - When values are long, precise, or error-prone (IDs, numbers, code, quotes), re-access them via variables and parse/compute in code instead of retyping. Use small, targeted prints to sanity-check, but avoid manual copying when variables can carry the exact value.\n6. SUBMIT ONLY AFTER SEEING OUTPUTS - SUBMIT ends the current run immediately. If you need to inspect printed output, run it in one step, review the result, then call SUBMIT in a later step.\n\nYou have max 50 sub-LLM calls. When done, call SUBMIT() with your output.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Previous REPL code executions and their outputs",
+            "annotation": "REPLHistory"
+          },
+          {
+            "name": "iteration",
+            "desc": "Current iteration number (1-indexed) out of max_iters",
+            "annotation": "str"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": "Think step-by-step: what do you know? What remains? Plan your next action.",
+            "annotation": "str"
+          },
+          {
+            "name": "code",
+            "desc": "Python code to execute. Use markdown code block format: ```python\\n<code>\\n```",
+            "annotation": "str"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "The trajectory was generated with the following objective: \nAnswer from the context.\n\n\nBased on the REPL trajectory, extract the final outputs now.\n\n            Review your trajectory to see what information you gathered and what values you computed, then provide the final outputs.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Your REPL interactions so far",
+            "annotation": "REPLHistory"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "answer",
+            "desc": "",
+            "annotation": "str"
+          }
+        ]
+      }
+    },
+    {
+      "label": "typed",
+      "task": "Typed",
+      "task_instructions": "Given the fields `context`, produce the fields `answer`, `count`.",
+      "max_llm_calls": 7,
+      "tools": [],
+      "action": {
+        "instructions": "Given the fields `context`, produce the fields `answer`, `count`.\n\nYou are tasked with producing the following outputs given the inputs `context`:\n- {answer}\n- {count}        # note: the value you produce must be a single int value\n\nYou have access to a Python REPL environment. Write Python code and it will be executed. You will see the output, then write more code based on what you learned. This is an iterative process.\n\nAvailable:\n- Variables: `context` (your input data)\n- `llm_query(prompt)` - query a sub-LLM (~500K char capacity) for semantic analysis\n- `llm_query_batched(prompts)` - query multiple prompts concurrently (much faster for multiple queries)\n- `print()` - ALWAYS print to see results\n- `SUBMIT(answer, count)` - submit final output when done\n- Standard libraries: re, json, collections, math, etc.\n\nIMPORTANT: This is ITERATIVE. Each code block you write will execute, you'll see the output, then you decide what to do next. Do NOT try to solve everything in one step.\n\n1. EXPLORE FIRST - Look at your data before processing it. Print samples, check types/lengths, understand the structure.\n2. ITERATE - Write small code snippets, observe outputs, then decide next steps. State persists between iterations.\n3. VERIFY BEFORE SUBMITTING - If results seem wrong (zeros, empty, unexpected), reconsider your approach.\n4. USE llm_query FOR SEMANTICS - String matching finds WHERE things are; llm_query understands WHAT things mean.\n5. MINIMIZE RETYPING (INPUTS & OUTPUTS) - When values are long, precise, or error-prone (IDs, numbers, code, quotes), re-access them via variables and parse/compute in code instead of retyping. Use small, targeted prints to sanity-check, but avoid manual copying when variables can carry the exact value.\n6. SUBMIT ONLY AFTER SEEING OUTPUTS - SUBMIT ends the current run immediately. If you need to inspect printed output, run it in one step, review the result, then call SUBMIT in a later step.\n\nYou have max 7 sub-LLM calls. When done, call SUBMIT() with your output.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Previous REPL code executions and their outputs",
+            "annotation": "REPLHistory"
+          },
+          {
+            "name": "iteration",
+            "desc": "Current iteration number (1-indexed) out of max_iters",
+            "annotation": "str"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": "Think step-by-step: what do you know? What remains? Plan your next action.",
+            "annotation": "str"
+          },
+          {
+            "name": "code",
+            "desc": "Python code to execute. Use markdown code block format: ```python\\n<code>\\n```",
+            "annotation": "str"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "The trajectory was generated with the following objective: \nGiven the fields `context`, produce the fields `answer`, `count`.\n\n\nBased on the REPL trajectory, extract the final outputs now.\n\n            Review your trajectory to see what information you gathered and what values you computed, then provide the final outputs.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Your REPL interactions so far",
+            "annotation": "REPLHistory"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "answer",
+            "desc": "",
+            "annotation": "str"
+          },
+          {
+            "name": "count",
+            "desc": "how many",
+            "annotation": "int"
+          }
+        ]
+      }
+    },
+    {
+      "label": "tools",
+      "task": "context -> answer",
+      "task_instructions": "Given the fields `context`, produce the fields `answer`.",
+      "max_llm_calls": 50,
+      "tools": [
+        "factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}."
+      ],
+      "action": {
+        "instructions": "Given the fields `context`, produce the fields `answer`.\n\nYou are tasked with producing the following outputs given the inputs `context`:\n- {answer}\n\nYou have access to a Python REPL environment. Write Python code and it will be executed. You will see the output, then write more code based on what you learned. This is an iterative process.\n\nAvailable:\n- Variables: `context` (your input data)\n- `llm_query(prompt)` - query a sub-LLM (~500K char capacity) for semantic analysis\n- `llm_query_batched(prompts)` - query multiple prompts concurrently (much faster for multiple queries)\n- `print()` - ALWAYS print to see results\n- `SUBMIT(answer)` - submit final output when done\n- Standard libraries: re, json, collections, math, etc.\n\nIMPORTANT: This is ITERATIVE. Each code block you write will execute, you'll see the output, then you decide what to do next. Do NOT try to solve everything in one step.\n\n1. EXPLORE FIRST - Look at your data before processing it. Print samples, check types/lengths, understand the structure.\n2. ITERATE - Write small code snippets, observe outputs, then decide next steps. State persists between iterations.\n3. VERIFY BEFORE SUBMITTING - If results seem wrong (zeros, empty, unexpected), reconsider your approach.\n4. USE llm_query FOR SEMANTICS - String matching finds WHERE things are; llm_query understands WHAT things mean.\n5. MINIMIZE RETYPING (INPUTS & OUTPUTS) - When values are long, precise, or error-prone (IDs, numbers, code, quotes), re-access them via variables and parse/compute in code instead of retyping. Use small, targeted prints to sanity-check, but avoid manual copying when variables can carry the exact value.\n6. SUBMIT ONLY AFTER SEEING OUTPUTS - SUBMIT ends the current run immediately. If you need to inspect printed output, run it in one step, review the result, then call SUBMIT in a later step.\n\nYou have max 50 sub-LLM calls. When done, call SUBMIT() with your output.\nAdditional tools available (use these instead of standard library equivalents):\n- `factorial(n: integer)` - Compute the factorial of n.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Previous REPL code executions and their outputs",
+            "annotation": "REPLHistory"
+          },
+          {
+            "name": "iteration",
+            "desc": "Current iteration number (1-indexed) out of max_iters",
+            "annotation": "str"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": "Think step-by-step: what do you know? What remains? Plan your next action.",
+            "annotation": "str"
+          },
+          {
+            "name": "code",
+            "desc": "Python code to execute. Use markdown code block format: ```python\\n<code>\\n```",
+            "annotation": "str"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "The trajectory was generated with the following objective: \nGiven the fields `context`, produce the fields `answer`.\n\n\nBased on the REPL trajectory, extract the final outputs now.\n\n            Review your trajectory to see what information you gathered and what values you computed, then provide the final outputs.",
+        "inputs": [
+          {
+            "name": "variables_info",
+            "desc": "Metadata about the variables available in the REPL",
+            "annotation": "str"
+          },
+          {
+            "name": "repl_history",
+            "desc": "Your REPL interactions so far",
+            "annotation": "REPLHistory"
+          }
+        ],
+        "outputs": [
+          {
+            "name": "answer",
+            "desc": "",
+            "annotation": "str"
+          }
+        ]
+      }
+    }
+  ]
+}

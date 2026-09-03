@@ -1,4 +1,4 @@
-# dspy 3.3.0b1: every test file upstream ships.
+# dspy 3.3.0: every test file upstream ships.
 tests/adapters/test_adapter_utils.py
 tests/adapters/test_audio.py
 tests/adapters/test_baml_adapter.py
@@ -9,6 +9,7 @@ tests/adapters/test_code.py
 tests/adapters/test_document.py
 tests/adapters/test_json_adapter.py
 tests/adapters/test_reasoning.py
+tests/adapters/test_resource_loading.py
 tests/adapters/test_tool.py
 tests/adapters/test_two_step_adapter.py
 tests/adapters/test_xml_adapter.py
@@ -20,6 +21,7 @@ tests/clients/test_embedding.py
 tests/clients/test_inspect_global_history.py
 tests/clients/test_lazy_litellm_import.py
 tests/clients/test_lm.py
+tests/clients/test_lm_direct_live.py
 tests/clients/test_lm_local.py
 tests/core/test_types.py
 tests/datasets/test_dataset.py
@@ -28,6 +30,12 @@ tests/evaluate/test_auto_evaluation.py
 tests/evaluate/test_evaluate.py
 tests/evaluate/test_metrics.py
 tests/examples/test_baleen.py
+tests/flex/test_flex_binding.py
+tests/flex/test_flex_gepa.py
+tests/flex/test_flex_gepa_seed.py
+tests/flex/test_flex_interpreter.py
+tests/flex/test_flex_output_types.py
+tests/flex/test_tools.py
 tests/metadata/test_metadata.py
 tests/predict/test_aggregation.py
 tests/predict/test_best_of_n.py

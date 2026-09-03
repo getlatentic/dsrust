@@ -4,6 +4,13 @@
 Counting to the first `#[cfg(test)]` undercounts: a file may carry ordinary code *after* its
 test module, and twice now a file has looked comfortably inside the guideline while being well
 outside it. This walks the whole file and skips each test module wherever it sits.
+
+Finding that module's end means counting braces, and counting them in raw text is how the same
+undercount came back on 2026-08-28. `lm/openai/responses/mod.rs` reported 393 lines against a real
+448: its tests hold JSON, the braces inside those string literals never balanced, and the module
+was therefore reported to end at the end of the file — swallowing every line of ordinary code that
+followed it. So the scan below skips strings, chars and comments, which is the difference between
+counting Rust and counting text that looks like it.
 """
 
 import argparse
@@ -31,18 +38,76 @@ def end_of_module(lines: list[str], index: int) -> int:
     """The line after the module opening at or below `index` closes."""
     depth = 0
     opened = False
+    in_block_comment = False
     while index < len(lines):
-        depth += lines[index].count("{") - lines[index].count("}")
-        opened = opened or "{" in lines[index]
+        opens, closes, in_block_comment = braces(lines[index], in_block_comment)
+        depth += opens - closes
+        opened = opened or opens > 0
         index += 1
         if opened and depth <= 0:
             break
     return index
 
 
+def braces(line: str, in_block_comment: bool) -> tuple[int, int, bool]:
+    """The braces this line opens and closes, ignoring those inside strings and comments.
+
+    Rust's raw strings (`r"…"`, `r#"…"#`) are handled by their hash count, which is what lets a
+    `json!` literal in a test hold an unmatched brace without moving the depth.
+    """
+    opens = closes = 0
+    index = 0
+    while index < len(line):
+        rest = line[index:]
+        if in_block_comment:
+            end = rest.find("*/")
+            if end < 0:
+                return opens, closes, True
+            index += end + 2
+            in_block_comment = False
+        elif rest.startswith("//"):
+            break
+        elif rest.startswith("/*"):
+            in_block_comment = True
+            index += 2
+        elif rest[0] in "\"'" or (rest[0] == "r" and rest[1:2] in ('"', "#")):
+            index += literal_length(line, index)
+        else:
+            opens += rest[0] == "{"
+            closes += rest[0] == "}"
+            index += 1
+    return opens, closes, in_block_comment
+
+
+def literal_length(line: str, index: int) -> int:
+    """How far the literal starting at `index` runs, or 1 if it does not close on this line."""
+    hashes = 0
+    at = index
+    if line[at] == "r":
+        at += 1
+        while at < len(line) and line[at] == "#":
+            hashes += 1
+            at += 1
+        if at >= len(line) or line[at] != '"':
+            return 1
+    quote = line[at]
+    at += 1
+    closing = quote + "#" * hashes
+    while at < len(line):
+        if line[at] == "\\" and not hashes and quote == '"':
+            at += 2
+            continue
+        if line.startswith(closing, at):
+            return at + len(closing) - index
+        at += 1
+    # An unterminated literal on this line: step past the opener rather than reading its content
+    # as code, which is the direction that cannot silently extend a module.
+    return 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("root", nargs="?", default="src", type=pathlib.Path)
+    parser.add_argument("root", nargs="?", default="crates/dsrust/src", type=pathlib.Path)
     parser.add_argument(
         "--limit",
         type=int,

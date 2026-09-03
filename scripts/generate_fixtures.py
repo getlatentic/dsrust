@@ -16,6 +16,8 @@ widen together.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 import pathlib
 import sys
@@ -31,6 +33,7 @@ from dspy.propose.grounded_proposer import (
     DescribeProgram,
     generate_instruction_class,
 )
+from dspy.teleprompt.gepa.gepa_flex_utils import CodeProposalSignature
 from dspy.propose.dataset_summary_generator import (
     DatasetDescriptor,
     DatasetDescriptorWithPriorObservations,
@@ -49,7 +52,8 @@ GENERATE_MODULE_INSTRUCTION = generate_instruction_class(
 ).signature
 
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance"
+ROOT = pathlib.Path(__file__).parent.parent
+OUT = ROOT / "crates" / "dsrust" / "tests" / "conformance"
 
 # Each case: the signature DSPy will build, and the input values to render with.
 # `kind` names the Rust FieldKind the harness maps this annotation to.
@@ -168,6 +172,19 @@ CASES = [
         "values": {"photo": dspy.Image(url="https://example.com/a.jpg")},
     },
     {
+        # Audio had no golden at all, where image had one: every audio render rested on
+        # hand-written tests agreeing with the code they test. Unlike an image, audio travels as
+        # an `input_audio` block carrying bare base64 beside a bare format name — the one media
+        # type that does not ride in a data URI — so the block split is different enough to earn
+        # its own measured render. The value is built with dspy's keyword form, which keeps the
+        # payload exactly as given.
+        "name": "audio_input_field",
+        "instructions": "Transcribe the clip.",
+        "inputs": [{"name": "clip", "type": dspy.Audio, "kind": "json:Audio", "desc": None}],
+        "outputs": [{"name": "transcript", "type": str, "kind": "str", "desc": None}],
+        "values": {"clip": dspy.Audio(data="YXVkaW8gYnl0ZXM=", audio_format="wav")},
+    },
+    {
         # Refine's feedback step, and the widest signature dspy ships: nine inputs, a float pair,
         # a list and a dict output. Its instructions and its `advice` description reach a prompt
         # verbatim — including upstream's "kind ofscenario", where two literals meet without a
@@ -251,6 +268,20 @@ CASES = [
             "previous_instructions": "Instruction #1: Answer the question.",
             "basic_instruction": "Answer the question.",
             "tip": "Keep the instruction clear and concise.",
+        },
+    },
+    {
+        # GEPA's code proposer, which is what makes a `dspy.Flex` optimizable: five inputs, and an
+        # instruction long enough that a transcription would drift on a line break alone. This is
+        # the prompt that asks a model for a whole `dspy.Module` subclass instead of an instruction.
+        "name": "code_proposal",
+        "dspy_signature": CodeProposalSignature,
+        "values": {
+            "task_description": "StringSignature: question -> answer",
+            "available_context": "(no extra context)",
+            "primitives_catalog": "dspy.Predict(signature)",
+            "current_source": "class M(dspy.Module):\n    def forward(self, **inputs):\n        return dspy.Prediction(answer='x')",
+            "failures": "Example 1: answered 'x', expected 'Paris'.",
         },
     },
     {
@@ -341,9 +372,51 @@ def render(signature: type[dspy.Signature], demos: list, values: dict) -> tuple[
     return messages[0]["content"], turns
 
 
+def confirm_by_a_second_path() -> None:
+    """The code proposer's instructions, derived twice, from paths that share nothing.
+
+    The Rust literal for this signature is *generated from the fixture rather than typed* — 2,900
+    characters nobody should transcribe — so the test comparing them cannot fail today. It catches
+    drift when the pin moves, which is worth having, and it is not verification.
+
+    This is the verification: read the same docstring out of the pinned **source text** with `ast`,
+    clean it, and require it to equal what dspy's runtime produced. One path goes through class
+    construction, the metaclass and the signature machinery; the other reads a file. They agree only
+    if the fixture is what upstream's source says, which is the claim the Rust literal rests on.
+    """
+    from dspy.teleprompt.gepa.gepa_flex_utils import CodeProposalSignature
+
+    source = (
+        pathlib.Path(dspy.__file__).parent / "teleprompt" / "gepa" / "gepa_flex_utils.py"
+    ).read_text()
+    declared = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.ClassDef) and node.name == "CodeProposalSignature"
+    )
+    from_source = inspect.cleandoc(ast.get_docstring(declared, clean=False) or "")
+    if from_source != CodeProposalSignature.instructions:
+        raise SystemExit(
+            "the code proposer's instructions differ between dspy's runtime and its source text; "
+            "one of the two paths is not reading what it claims to"
+        )
+
+
+#: Instructions long enough that a Rust string literal would hold them behind an escape per newline
+#: and quote, so the crate reads them from a file instead. Written here, from the same pinned dspy
+#: that writes the fixture, because two artefacts regenerated by different hands is how one goes
+#: stale — `the_code_proposal_signature_is_dspys_own` is what catches it if they do.
+VENDORED_INSTRUCTIONS = {
+    "code_proposal": (
+        ROOT / "crates" / "dsrust" / "src" / "predict" / "flex" / "code_proposal_instructions.txt",
+    ),
+}
+
+
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
+    confirm_by_a_second_path()
     OUT.mkdir(parents=True, exist_ok=True)
     for case in CASES:
         demos = case.get("demos", [])
@@ -371,6 +444,9 @@ def main() -> None:
         path = OUT / f"{case['name']}.json"
         path.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")
         print(f"  wrote {path.relative_to(OUT.parent.parent)}", file=sys.stderr)
+        for vendored in VENDORED_INSTRUCTIONS.get(case["name"], ()):
+            vendored.write_text(fixture["instructions"])
+            print(f"  wrote {vendored.relative_to(ROOT)}", file=sys.stderr)
 
 
 if __name__ == "__main__":

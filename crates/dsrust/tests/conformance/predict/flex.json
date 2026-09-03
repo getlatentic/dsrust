@@ -1,0 +1,274 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_flex_fixture.py",
+  "dspy_version": "3.3.0",
+  "primitives_catalog": "You are authoring ONE Python source string: a single `dspy.Module` subclass that\nimplements the user's signature. It has exactly two methods:\n\n1) `def __init__(self):` — calls `super().__init__()` and assigns each predictor it\n   needs to an attribute, e.g. `self.classify = dspy.Predict(\"text -> label\")`.\n   Each predictor is a constructed `dspy.Predict` / `dspy.ChainOfThought` /\n   `dspy.ReAct` / `dspy.RLM` over a sub-signature string. Define a predictor ONLY\n   for a step that genuinely needs a language model. If the task needs no LM at\n   all, define no predictors (an `__init__` with just `super().__init__()`).\n\n2) `def forward(self, **inputs):` — returns `dspy.Prediction(<output_fields...>)`\n   matching the declared signature. The body may call the predictors\n   (`self.<name>(...)`) AND/OR run arbitrary deterministic Python — parsing,\n   arithmetic, regex, string and data-structure manipulation, control flow, and\n   small helper functions defined *inside* `forward`. A module may be fully\n   deterministic (no predictors), fully LM-driven, or a mix. Prefer plain Python\n   for anything that doesn't require an LM's judgment.\n\nThe whole class is one optimizable unit — `__init__` and `forward` are rewritten\ntogether, so a predictor renamed in one place must be updated in the other.\n\nSkeleton (the shape of every module you write):\n\n```\nclass SolveModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.extract = dspy.Predict(\"invoice: str -> qty: int, unit_price_cents: int\")\n\n    def forward(self, **inputs):\n        e = self.extract(invoice=inputs[\"invoice\"])\n        return dspy.Prediction(total_cents=int(e.qty) * int(e.unit_price_cents))\n```\n\n`dspy` is already in scope — do NOT add `import` statements at module scope (import\nstdlib modules like `re` *inside* `forward` if you need them). Python and standard-library\navailability is defined by this Flex's configured interpreter; candidates are evaluated in that\ninterpreter and should not assume host-Python access.\n\nAvailable DSPy primitives:\n\n- `dspy.Predict(\"a, b -> c, d\")`, one LM call. `result = self.p(a=x, b=y)` returns a\n  `dspy.Prediction` object; the declared outputs are attributes on it:\n  `result.c`, `result.d`. Signature strings use snake_case names.\n  TYPE the fields whenever you know the type — `\"text: str -> count: int, tags: list[str]\"` —\n  a typed output is parsed and coerced to that type, while an untyped one comes back as a bare\n  string you must cast yourself.\n  Give any predictor task-specific INSTRUCTIONS by constructing it over a\n  `dspy.Signature(\"a, b -> c, d\", \"natural-language instructions ...\")` instead of a bare\n  string.\n  You may optimize these string instructions. See \"Writing and refining instructions\"\n  below.\n\n- `dspy.ChainOfThought(\"a -> b\")`, like Predict but adds an implicit `reasoning`\n   output field; useful when the answer benefits from explicit step-by-step thought.\n\n- `dspy.ReAct(signature_str, tools=[tool1, tool2])`, multi-step reasoning + tool\n   use. `tools` is a list of plain Python callables or `dspy.Tool` instances.\n\n- `dspy.RLM(\"context, query -> output\")`, Recursive Language Model: the LLM writes\n   Python code in a sandboxed REPL to programmatically explore very large or\n   structured inputs (long documents, big JSON blobs, tables) and build up an answer\n   iteratively. Use when one of the input fields is too large or too structured for a\n   single direct prompt. The defaults are sensible; only pass a kwarg to override one.\n   Optional kwargs: `max_iters` (REPL steps, default 20), `max_llm_calls` (sub-LLM\n   calls, default 50), `sub_lm` (cheaper LM for sub-queries), `tools` (extra callables\n   for the REPL).\n\n- Tools for `dspy.ReAct` / `dspy.RLM` come from two places:\n  (1) any tools listed in the available context, in scope by name — ONLY these provided tools may\n  be handed to a sub-predictor via `dspy.ReAct(..., tools=[...])` / `dspy.RLM(..., tools=[...])`;\n  and (2) helpers you AUTHOR yourself — when a sub-step needs a capability the provided tools don't\n  cover (deterministic lookups, parsing/formatting, calculators, validators, retrieval helpers,\n  etc.), define a plain function (with a docstring and type hints) nested inside `forward` and CALL\n  IT DIRECTLY. This code runs in a sandbox, so an authored helper cannot be handed to a bridged\n  sub-predictor — keep authored helpers to direct calls in `forward`.\n\n- `dspy.Tool(func)`, wraps a callable as a tool (for `ReAct`/`RLM`); usually you can pass the\n   bare function and it is wrapped for you.\n\n- `dspy.Prediction(field_a=value_a, field_b=value_b)`, construct the final return\n   value. The keyword names MUST match the parent signature's output_fields\n   exactly, and each `value_*` must be a plain value of the declared output\n   type — never a `dspy.Prediction` you got back from a predictor call.\n\nThe list above is the WHOLE of `dspy` available here. These do NOT exist in this\nmodule, and referencing one makes the code fail to bind: adapters\n(`dspy.ChatAdapter`, `dspy.JSONAdapter`), `dspy.settings`, `dspy.context`,\n`dspy.configure`, `dspy.LM`, `dspy.Example`, `dspy.Evaluate`, the optimizers,\nretrievers, `dspy.Flex` itself, and class-based signatures with\n`dspy.InputField` / `dspy.OutputField` (use the string form,\n`dspy.Signature(\"a -> b\", \"instructions\")`). The host owns prompting, parsing,\nand the LM; this source only declares predictors and the Python wiring them\ntogether. The code also runs sandboxed, with no host filesystem or network, unless otherwise\nprovided via a host tool.\n\nRules you MUST follow:\n\n- Define every predictor in `__init__` as `self.<name> = dspy.Predict(...)` and call\n  it in `forward` as `self.<name>(...)`.\n- `forward` runs on a fresh instance every call: do not rely on `self` attributes\n  carrying state across calls (caches, counters). Cross-call state, if truly needed,\n  belongs in a provided host tool.\n\n- Give predictors INSTRUCTIONS, don't just rely on field names. When the feedback shows\n  the model needs guidance, construct the predictor over\n  `dspy.Signature(\"inputs -> outputs\", \"instructions\")` and refine those instructions from the\n  failing examples (see \"Writing and refining instructions\"). These instructions are optimized\n  ONLY through this source, so improving them is as important as changing the code.\n\n- Do NOT access dunder attributes (anything matching `__*__`). Use the public API.\n\n- Every `while` loop must be bounded, either with an explicit `break`, or rewrite\n  to `for _ in range(N):`. Pick a small `N` (e.g. 5).\n\n- Always return `dspy.Prediction(...)` from `forward`. Never raise from `forward`\n  unless the input itself is malformed.\n\n- Use predictors only where an LM is genuinely needed (extraction, classification,\n  generation, open-ended reasoning); do everything else — math, parsing, formatting,\n  validation, control flow — in plain Python. When no step needs an LM, write a\n  pure-Python `forward` and define no predictors in `__init__`.\n\n- Define any helper functions NESTED inside `forward` (not at module scope), and\n  add no module-scope code other than the single class definition, so the persisted\n  module file and the live module execute identically.\n\n- Keep the design composable: prefer two short predictors with clear signatures\n  over one all-knowing prompt.\n\n- Do not hardcode example outputs or magic constants from the task description.\n\n- Pick the right primitive for each step. Rough guide:\n    * `dspy.Predict` for direct, single-call transformations.\n    * `dspy.ChainOfThought` when the answer benefits from explicit step-by-step\n      reasoning.\n    * `dspy.ReAct` when external tools must be called during reasoning.\n    * `dspy.RLM` when an input field is a large blob (long document, big JSON,\n      multi-table data) that doesn't fit naturally in a single prompt — RLM\n      lets the LLM explore it iteratively via a sandboxed REPL.\n\nWriting and refining instructions:\n\nThe predictors you define are prompts, and a predictor's natural-language instructions — the\nsecond argument to `dspy.Signature(\"inputs -> outputs\", \"instructions\")` — are a PRIMARY thing\nyou optimize here, exactly like the code structure. Because these predictors live inside this\ndspy.Flex module, this source is the ONLY place their instructions get optimized, so rewriting\nthem well matters as much as picking the right primitive. Don't leave a predictor on a bare\nsignature string once the feedback shows the model needs guidance.\n\nWhen you revise, mine the failing examples and feedback the way a dedicated instruction\noptimizer would:\n\n- Read every failing input, output, and its feedback, and diagnose WHY each one failed.\n- Categorize what the feedback is telling you:\n    * Error patterns — recurring mistakes to explicitly prevent.\n    * Success patterns — what worked and should be preserved/reinforced.\n    * Domain-knowledge gaps — task-specific facts, definitions, or conventions the model\n      lacked; state them IN the instruction, since the model won't otherwise have them.\n    * Task-specific guidance — required output format, edge cases, and constraints.\n- Fold those findings into each affected predictor's instructions: a clear task definition,\n  the domain knowledge it needs, explicit rules that prevent the observed errors, the exact\n  output format required, and precise, actionable language. Keep instructions specific to the\n  task but NEVER paste in example answers or magic constants from the data.\n\nRule of thumb: fix a predictor's INSTRUCTIONS when a failure is about WHAT the model should do\nor know; change the CODE structure (which predictors, how they're wired, what runs in plain\nPython) when the failure is about HOW the steps fit together. The best revision often does both.\n\nCommon patterns (study these before writing `forward`):\n\n1) Unwrap every predictor output. A predictor call returns a `dspy.Prediction`\n   whose declared output fields are attributes on it. Always read those\n   attributes before composing further calls or the final return.\n\n   ```\n   class TotalModule(dspy.Module):\n       def __init__(self):\n           super().__init__()\n           self.parse = dspy.Predict(\"invoice -> qty: int, unit_price: float\")\n           self.shipping = dspy.Predict(\"invoice -> shipping_dollars: float\")\n\n       # RIGHT — pull fields off each predictor result, then build the final Prediction\n       def forward(self, **inputs):\n           parsed = self.parse(invoice=inputs[\"invoice\"])\n           ship = self.shipping(invoice=inputs[\"invoice\"])\n           cents = round((parsed.qty * parsed.unit_price + ship.shipping_dollars) * 100)\n           return dspy.Prediction(total_cents=int(cents))\n\n       # WRONG — passing the whole inner Prediction as the field value, producing\n       # Prediction(total_cents=Prediction(total_cents=...)) at runtime:\n       #     return dspy.Prediction(total_cents=self.parse(invoice=inputs[\"invoice\"]))\n   ```\n\n2) Coerce to the declared output type. If the parent signature declares\n   `total_cents: int`, cast in Python (`int(...)`, `float(...)`, `str(...)`,\n   `bool(...)`, list comprehensions for `list[T]`) before returning. LM\n   string outputs do NOT auto-cast to the declared type.\n\n3) Compose predictor outputs into the next call by passing the unwrapped\n   attribute, never the whole Prediction. `self.next(x=prev.x)` — not\n   `self.next(x=prev)`.\n\n4) Do arithmetic, sorting, filtering, and aggregation in plain Python in\n   `forward()`. Use the LM to extract / classify / generate; let Python do\n   the math. This is more reliable and easier to debug than asking the LM\n   to do both at once.\n\n5) A fully-deterministic task needs no LM: define no predictors and implement\n   `forward` in plain Python, with any helpers nested inside it.\n\n   ```\n   class SlugifyModule(dspy.Module):\n       def __init__(self):\n           super().__init__()\n\n       def forward(self, **inputs):\n           def slugify(text):\n               cleaned = \"\".join(c.lower() if c.isalnum() else \"-\" for c in text)\n               return \"-\".join(part for part in cleaned.split(\"-\") if part)\n\n           return dspy.Prediction(slug=slugify(inputs[\"title\"]))\n   ```\n\n6) Put task guidance in a predictor's INSTRUCTIONS, not only in the field names, and refine\n   them from feedback. Give the signature a second argument spelling out the rules the failures\n   revealed (definitions, output format, error-prevention), without pasting in example answers.\n\n   ```\n   class ClassifyModule(dspy.Module):\n       def __init__(self):\n           super().__init__()\n           self.classify = dspy.Predict(dspy.Signature(\n               \"ticket: str -> category: str\",\n               \"Classify the support ticket into exactly one of: billing, bug, feature, other. \"\n               \"Choose 'bug' only for a defect in existing behavior; a request for new behavior \"\n               \"is 'feature'. Reply with the lowercase category word and nothing else.\"\n           ))\n\n       def forward(self, **inputs):\n           out = self.classify(ticket=inputs[\"ticket\"])\n           return dspy.Prediction(category=out.category.strip().lower())\n   ```\n",
+  "shim": "\"\"\"Sandbox side of the dspy.Flex bridge: a stand-in ``dspy`` module for optimizer-authored code.\n\n``BridgeRuntime.forward`` executes this source in each per-forward interpreter before the bound\n``module_src``, so the generated module runs sandboxed while predictors are built and called on\nthe host:\n\n- ``dspy.Predict`` and other allowed modules return a ``_DspyPending``; construction waits for attribute assignment,\n  because the attribute name is the predictor's host-side handle.\n- ``_DspyModule.__setattr__`` has the host build the real predictor (``__dspy_construct__``) and\n  binds a ``_DspyProxy`` in its place. Calling the proxy runs the predictor (``__dspy_call__``)\n  and wraps the returned output fields in a ``_DspyPrediction``.\n- Callables and signatures cannot cross the JSON boundary as themselves, so they travel as\n  markers the host resolves: tools by name (``__dspy_tool__``), ``dspy.Signature(...)`` results\n  as ``__dspy_sig__`` payloads.\n\nEvery name here is ``_dspy``-prefixed to stay clear of generated code; ``FlexContext`` rejects\nuser tool names in that namespace.\n\"\"\"\n\nimport sys as _dspy_sys\nimport types as _dspy_types\n\n\ndef _dspy_host(_fn, **_kw):\n    # Call a registered host tool by name (the CodeInterpreter.tools contract) and return its result.\n    return globals()[_fn](**_kw)\n\n\nclass _DspyPrediction:\n    \"\"\"Sandbox-side stand-in for dspy.Prediction; just holds output fields.\"\"\"\n\n    def __init__(self, **_fields):\n        object.__setattr__(self, \"_fields\", dict(_fields))\n\n    def __getattr__(self, _name):\n        _f = object.__getattribute__(self, \"_fields\")\n        if _name in _f:\n            return _f[_name]\n        raise AttributeError(_name)\n\n    def __getitem__(self, _name):\n        return object.__getattribute__(self, \"_fields\")[_name]\n\n    def __repr__(self):\n        return \"Prediction(\" + repr(object.__getattribute__(self, \"_fields\")) + \")\"\n\n\nclass _DspyProxy:\n    \"\"\"Sandbox-side handle to a host predictor. Calling it runs the real predictor on the host.\"\"\"\n\n    def __init__(self, _handle):\n        object.__setattr__(self, \"_handle\", _handle)\n\n    def __call__(self, **_inputs):\n        _h = object.__getattribute__(self, \"_handle\")\n        _out = _dspy_host(\"__dspy_call__\", handle=_h, inputs=_inputs)\n        return _DspyPrediction(**(_out or {}))\n\n\nclass _DspyPending:\n    \"\"\"Returned by a shim constructor before the attribute name is known (captured in __setattr__).\"\"\"\n\n    def __init__(self, _kind, _sig, _kwargs):\n        self.kind = _kind\n        self.sig = _sig\n        self.kwargs = _kwargs\n\n\nclass _DspyModule:\n    def __init__(self, *_a, **_k):\n        pass\n\n    def __setattr__(self, _name, _value):\n        if isinstance(_value, _DspyPending):\n            _h = _dspy_host(\n                \"__dspy_construct__\",\n                kind=_value.kind,\n                signature=_value.sig,\n                attr_name=_name,\n                kwargs=_value.kwargs,\n            )\n            _value = _DspyProxy(_h)\n        object.__setattr__(self, _name, _value)\n\n    def __call__(self, **_kw):\n        return self.forward(**_kw)\n\n\ndef _dspy_enc(_v):\n    # Tool references (e.g. tools=[shout]) are sandbox functions; send them to the host by name.\n    if callable(_v) and hasattr(_v, \"__name__\"):\n        return {\"__dspy_tool__\": _v.__name__}\n    if isinstance(_v, (list, tuple)):\n        return [_dspy_enc(_x) for _x in _v]\n    if isinstance(_v, dict):\n        return {_k: _dspy_enc(_x) for _k, _x in _v.items()}\n    return _v\n\n\ndef _dspy_make_ctor(_kind):\n    def _ctor(signature=None, **_kwargs):\n        return _DspyPending(_kind, signature, {_k: _dspy_enc(_v) for _k, _v in _kwargs.items()})\n\n    return _ctor\n\n\ndef _dspy_signature(signature, instructions=None, **_kw):\n    return {\"__dspy_sig__\": True, \"signature\": signature, \"instructions\": instructions}\n\n\ndef _dspy_tool(func, **_kw):\n    return func\n\n\n_dspy = _dspy_types.ModuleType(\"dspy\")\n_dspy.Module = _DspyModule\n_dspy.Prediction = _DspyPrediction\n_dspy.Signature = _dspy_signature\n_dspy.Tool = _dspy_tool\nfor _k in (\"Predict\", \"ChainOfThought\", \"RLM\", \"CodeAct\", \"ProgramOfThought\", \"ReAct\", \"ReActV2\"):\n    setattr(_dspy, _k, _dspy_make_ctor(_k))\ndspy = _dspy\n\n# Register as the importable ``dspy`` only inside the sandbox, where the registered host tools are\n# present in globals().\nif \"__dspy_construct__\" in globals():\n    _dspy_sys.modules[\"dspy\"] = _dspy\n",
+  "cases": [
+    {
+      "label": "bare",
+      "signature": "question -> answer",
+      "instructions": "Given the fields `question`, produce the fields `answer`.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "bare with instructions",
+      "signature": "question -> answer",
+      "instructions": "Answer well.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Answer well.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "typed",
+      "signature": "question: str -> answer: str",
+      "instructions": "Given the fields `question`, produce the fields `answer`.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "several",
+      "signature": "question: str, context: str -> answer: str, confidence: float",
+      "instructions": "Given the fields `question`, `context`, produce the fields `answer`, `confidence`.",
+      "rendered_signature": "question: str, context: str -> answer: str, confidence: float",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str, context: str -> answer: str, confidence: float', 'Given the fields `question`, `context`, produce the fields `answer`, `confidence`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer, confidence=result.confidence)"
+    },
+    {
+      "label": "non-scalar",
+      "signature": "question: str -> tags: list[str]",
+      "instructions": "Given the fields `question`, produce the fields `tags`.",
+      "rendered_signature": "question: str -> tags: list[str]",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> tags: list[str]', 'Given the fields `question`, produce the fields `tags`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(tags=result.tags)"
+    },
+    {
+      "label": "int and bool",
+      "signature": "n: int, flag: bool -> doubled: int",
+      "instructions": "Given the fields `n`, `flag`, produce the fields `doubled`.",
+      "rendered_signature": "n: int, flag: bool -> doubled: int",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('n: int, flag: bool -> doubled: int', 'Given the fields `n`, `flag`, produce the fields `doubled`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(doubled=result.doubled)"
+    },
+    {
+      "label": "instructions with a quote",
+      "signature": "question -> answer",
+      "instructions": "Say \"hello\" first.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Say \"hello\" first.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "multi-line instructions",
+      "signature": "question -> answer",
+      "instructions": "Answer the question.\n\nBe brief.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Answer the question.\\n\\nBe brief.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "instructions with a tab",
+      "signature": "question -> answer",
+      "instructions": "Answer. Briefly.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Answer. Briefly.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "instructions with a backslash",
+      "signature": "question -> answer",
+      "instructions": "Escape \\n literally.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Escape \\\\n literally.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "instructions with an apostrophe and a newline",
+      "signature": "question -> answer",
+      "instructions": "Don't.\nEver.",
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', \"Don't.\\nEver.\"))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "declared subclass",
+      "signature": null,
+      "instructions": null,
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "QAModule",
+      "baseline_src": "class QAModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Answer the question.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    },
+    {
+      "label": "with a tool",
+      "signature": null,
+      "instructions": null,
+      "rendered_signature": "question: str -> answer: str",
+      "class_name": "StringSignatureModule",
+      "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.rlm = dspy.RLM(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'), tools=[shout])\n\n    def forward(self, **inputs):\n        result = self.rlm(**inputs)\n        return dspy.Prediction(answer=result.answer)"
+    }
+  ],
+  "mixed_state": {
+    "plain": {
+      "traces": [],
+      "train": [],
+      "demos": [],
+      "signature": {
+        "instructions": "Given the fields `question`, produce the fields `answer`.",
+        "fields": [
+          {
+            "prefix": "Question:",
+            "description": "${question}"
+          },
+          {
+            "prefix": "Answer:",
+            "description": "${answer}"
+          }
+        ]
+      },
+      "lm": null
+    },
+    "flexed": {
+      "module_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)",
+      "lm": null
+    }
+  },
+  "format_failures": [
+    {
+      "label": "none",
+      "records": [],
+      "rendered": "(no failing examples available)"
+    },
+    {
+      "label": "one",
+      "records": [
+        {
+          "Inputs": {
+            "question": "Where?"
+          },
+          "Generated Outputs": {
+            "answer": "x"
+          },
+          "Feedback": "wrong"
+        }
+      ],
+      "rendered": "=== Example 0 ===\nInputs:\n{'question': 'Where?'}\nGenerated Outputs:\n{'answer': 'x'}\nFeedback:\nwrong"
+    },
+    {
+      "label": "two",
+      "records": [
+        {
+          "Inputs": {
+            "a": 1
+          },
+          "Generated Outputs": {
+            "b": "it's"
+          },
+          "Feedback": "no"
+        },
+        {
+          "Inputs": {},
+          "Generated Outputs": null,
+          "Feedback": null
+        }
+      ],
+      "rendered": "=== Example 0 ===\nInputs:\n{'a': 1}\nGenerated Outputs:\n{'b': \"it's\"}\nFeedback:\nno\n\n=== Example 1 ===\nInputs:\n{}\nGenerated Outputs:\nNone\nFeedback:\nNone"
+    },
+    {
+      "label": "missing keys",
+      "records": [
+        {
+          "Feedback": "only feedback"
+        }
+      ],
+      "rendered": "=== Example 0 ===\nInputs:\nNone\nGenerated Outputs:\nNone\nFeedback:\nonly feedback"
+    }
+  ],
+  "task_context": [
+    {
+      "label": "bare",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "This module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "(no extra context)"
+    },
+    {
+      "label": "described",
+      "signature_spec": "Signature: Described\nObjective (docstring): Answer carefully.\nInput fields:\n  - question: str  -- The question asked.\n  - context: str\nOutput fields:\n  - answer: str  -- A short answer.\n",
+      "context_blurb": "This module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "(no extra context)"
+    },
+    {
+      "label": "one tool",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "Available tools (in scope by name):\n  - shout: Shout it.\n\nThis module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "Available tools (in scope by name):\n  - shout: Shout it."
+    },
+    {
+      "label": "tool with no docstring",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "Available tools (in scope by name):\n  - quiet: \n\nThis module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "Available tools (in scope by name):\n  - quiet: "
+    },
+    {
+      "label": "two tools",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "Available tools (in scope by name):\n  - shout: Shout it.\n  - whisper: Whisper it.\n\nThis module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "Available tools (in scope by name):\n  - shout: Shout it.\n  - whisper: Whisper it."
+    }
+  ],
+  "strip_code_fences": [
+    {
+      "raw": "plain source",
+      "stripped": "plain source"
+    },
+    {
+      "raw": "```python\nclass M:\n    pass\n```",
+      "stripped": "class M:\n    pass"
+    },
+    {
+      "raw": "```\nclass M:\n    pass\n```",
+      "stripped": "class M:\n    pass"
+    },
+    {
+      "raw": "```python\nclass M:\n    pass",
+      "stripped": "class M:\n    pass"
+    },
+    {
+      "raw": "  \n```py\n\tclass M:\n\t\tpass\n```\n  ",
+      "stripped": "class M:\n        pass"
+    },
+    {
+      "raw": "```",
+      "stripped": ""
+    },
+    {
+      "raw": "",
+      "stripped": ""
+    },
+    {
+      "raw": "no fence but\ta tab",
+      "stripped": "no fence but    a tab"
+    },
+    {
+      "raw": "a\tb",
+      "stripped": "a   b"
+    },
+    {
+      "raw": "ab\tc",
+      "stripped": "ab  c"
+    },
+    {
+      "raw": "abc\td",
+      "stripped": "abc d"
+    },
+    {
+      "raw": "abcd\te",
+      "stripped": "abcd    e"
+    },
+    {
+      "raw": "x\ty\tz",
+      "stripped": "x   y   z"
+    }
+  ]
+}

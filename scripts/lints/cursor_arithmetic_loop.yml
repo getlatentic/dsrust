@@ -1,0 +1,55 @@
+# A while-loop whose progress is hand-maintained cursor arithmetic.
+#
+# The loop's exit depends on `$CURSOR` growing, and the growing is a statement in the body — which
+# means a single mutated operator (`+=` to `*=`, `-=`) turns termination into a spin that holds a
+# core for the whole mutation timeout and, in production, forever. This is not hypothetical: on
+# 2026-08-06 alone the shape hung the suite four separate times — `signature/prefix.rs`'s two split
+# passes, ollama's `flatten` and `merge`, and `mipro/proposer.rs`'s `without_label`, whose four
+# `+=` sites each burned a two-minute timeout — and earlier sessions found the same shape in
+# `adapter/parse.rs::next_tag`, gepa's `pyset`, and gepa's `optimize` loop, where an empty trainset
+# spun a *real* run forever. Nine instances, one shape.
+#
+# The fix is structural progress: iterate the sequence (`split_first`, `take_while`, `chunks`), or
+# bound the loop by a range that cannot grow (`for _ in 0..n`) with a loud assert on early exit.
+# Where a loop genuinely must keep the cursor shape, the bound must live somewhere a mutant cannot
+# remove silently, and the suppression names it:
+#
+#     // <why a stalled cursor still terminates loudly>
+#     // ast-grep-ignore: cursor-arithmetic-loop
+#
+# The json-repair crate carries most suppressions: its walks mirror upstream python-json-repair's
+# index arithmetic on purpose (the port is held to that shape), and every read goes through the
+# counted `Source::at`, whose read floor panics — the bound lives in the reader.
+#
+# Deliberately not matched: `loop { }` bodies (no condition to tie the cursor to — that family is
+# caught by mutation timeouts instead) and progress made in a callee (gepa's `optimize`, where
+# `total_num_evals` grows inside helpers — syntactically invisible, tracked by that crate's own
+# mutation floor).
+id: cursor-arithmetic-loop
+language: rust
+severity: error
+message: while-loop progress is hand-maintained cursor arithmetic — a mutant one operator away from a spin
+note: iterate the sequence (split_first/take_while/chunks) or bound the loop structurally; if the cursor shape is required, suppress with the reason the stall still terminates loudly
+rule:
+  kind: while_expression
+  any:
+    - all:
+        - has:
+            field: condition
+            has: {kind: identifier, pattern: $CURSOR, stopBy: end}
+        - has:
+            field: body
+            any:
+              - has: {pattern: $CURSOR += $S, stopBy: end}
+              - has: {pattern: $CURSOR -= $S, stopBy: end}
+              - has: {pattern: $CURSOR = $CURSOR + $S, stopBy: end}
+              - has: {pattern: $CURSOR = $CURSOR - $S, stopBy: end}
+    - all:
+        - has:
+            field: condition
+            has: {kind: field_expression, pattern: $CURSOR, stopBy: end}
+        - has:
+            field: body
+            any:
+              - has: {pattern: $CURSOR += $S, stopBy: end}
+              - has: {pattern: $CURSOR -= $S, stopBy: end}

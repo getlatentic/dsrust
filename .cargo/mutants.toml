@@ -1,0 +1,19 @@
+# Every `cargo mutants` run in this repo, not only `scripts/run_mutants.sh`.
+#
+# `~/.cargo/config.toml` points `build.build-dir` at one directory shared by every project on this
+# machine, so agent worktrees do not each hold a copy of the same dependency object code.
+# cargo-mutants isolates by copying the *source* tree — so without an override every copy compiles
+# into that shared directory and leaves a mutated rlib where an ordinary `cargo test` will link it.
+# Measured once: cargo-mutants' `xyzzy` marker turned up inside a BAML prompt assertion, 41 tests
+# failed with `git status` showing nothing, and it took `cargo clean` twice (74 GiB) to clear.
+#
+# The path is **relative on purpose**. An absolute override moves the collision one directory out:
+# two sessions mutating two crates wrote the same fixed path, each linked the other's mutants, and
+# whichever finished first deleted it out from under the other — two runs' numbers, both rubbish,
+# neither saying so. Cargo resolves a relative `build-dir` against the workspace root it is
+# building, and cargo-mutants gives every parallel job its own copy of the tree, so a relative name
+# lands inside that copy. That is the per-job isolation `-j` needs, and it is per-worktree for free.
+#
+# `run_mutants.sh` also exports `CARGO_BUILD_BUILD_DIR`; this is the half that covers a hand-run,
+# which is how the marker escaped the first time. Belt and braces, deliberately.
+additional_cargo_args = ["--config", "build.build-dir=\"mutants-build\""]

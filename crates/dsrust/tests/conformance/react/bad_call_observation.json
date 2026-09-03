@@ -1,0 +1,88 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_bad_call_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": {
+    "missing": {
+      "tool": "wikipedia_search",
+      "args": {},
+      "observation_0": "Execution error in wikipedia_search: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 180, in __call__\n    result = self.func(**parsed_kwargs)\nTypeError: wikipedia_search() missing 1 required positional argument: 'query'",
+      "exception_line": "TypeError: wikipedia_search() missing 1 required positional argument: 'query'"
+    },
+    "mistyped": {
+      "tool": "count_to",
+      "args": {
+        "limit": "three"
+      },
+      "observation_0": "Execution error in count_to: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 132, in _validate_and_parse_args\n    validate(instance=instance, schema=self.args[k])\n    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/jsonschema/validators.py\", line 1332, in validate\n    raise error\njsonschema.exceptions.ValidationError: 'three' is not of type 'integer'\n\nFailed validating 'type' in schema:\n    {'type': 'integer'}\n\nOn instance:\n    'three'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 179, in __call__\n    parsed_kwargs = self._validate_and_parse_args(**kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 134, in _validate_and_parse_args\n    raise ValueError(f\"Arg {k} is invalid: {e.message}\")\nValueError: Arg limit is invalid: 'three' is not of type 'integer'",
+      "exception_line": "ValueError: Arg limit is invalid: 'three' is not of type 'integer'"
+    },
+    "unknown_arg": {
+      "tool": "wikipedia_search",
+      "args": {
+        "topic": "haiku"
+      },
+      "observation_0": "Execution error in wikipedia_search: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 179, in __call__\n    parsed_kwargs = self._validate_and_parse_args(**kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 127, in _validate_and_parse_args\n    raise ValueError(f\"Arg {k} is not in the tool's args.\")\nValueError: Arg topic is not in the tool's args.",
+      "exception_line": "ValueError: Arg topic is not in the tool's args."
+    },
+    "missing_two": {
+      "tool": "pair",
+      "args": {},
+      "observation_0": "Execution error in pair: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 180, in __call__\n    result = self.func(**parsed_kwargs)\nTypeError: pair() missing 2 required positional arguments: 'prompt' and 'answer'",
+      "exception_line": "TypeError: pair() missing 2 required positional arguments: 'prompt' and 'answer'"
+    },
+    "missing_three": {
+      "tool": "triple",
+      "args": {},
+      "observation_0": "Execution error in triple: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 180, in __call__\n    result = self.func(**parsed_kwargs)\nTypeError: triple() missing 3 required positional arguments: 'a', 'b', and 'c'",
+      "exception_line": "TypeError: triple() missing 3 required positional arguments: 'a', 'b', and 'c'"
+    },
+    "integral_float": {
+      "tool": "count_to",
+      "args": {
+        "limit": 3.0
+      },
+      "observation_0": "0,1,2"
+    },
+    "bool_for_integer": {
+      "tool": "count_to",
+      "args": {
+        "limit": true
+      },
+      "observation_0": "Execution error in count_to: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 132, in _validate_and_parse_args\n    validate(instance=instance, schema=self.args[k])\n    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/jsonschema/validators.py\", line 1332, in validate\n    raise error\njsonschema.exceptions.ValidationError: True is not of type 'integer'\n\nFailed validating 'type' in schema:\n    {'type': 'integer'}\n\nOn instance:\n    True\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 179, in __call__\n    parsed_kwargs = self._validate_and_parse_args(**kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 134, in _validate_and_parse_args\n    raise ValueError(f\"Arg {k} is invalid: {e.message}\")\nValueError: Arg limit is invalid: True is not of type 'integer'",
+      "exception_line": "ValueError: Arg limit is invalid: True is not of type 'integer'"
+    },
+    "optional_by_type_omitted": {
+      "tool": "with_optional",
+      "args": {
+        "prompt": "x"
+      },
+      "observation_0": "Execution error in with_optional: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 180, in __call__\n    result = self.func(**parsed_kwargs)\nTypeError: with_optional() missing 1 required positional argument: 'worked'",
+      "exception_line": "TypeError: with_optional() missing 1 required positional argument: 'worked'"
+    },
+    "optional_by_type_null": {
+      "tool": "with_optional",
+      "args": {
+        "prompt": "x",
+        "worked": null
+      },
+      "observation_0": "x|None"
+    },
+    "optional_by_type_wrong": {
+      "tool": "with_optional",
+      "args": {
+        "prompt": "x",
+        "worked": 3
+      },
+      "observation_0": "Execution error in with_optional: \nTraceback (most recent call last):\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/predict/react.py\", line 110, in forward\n    trajectory[f\"observation_{idx}\"] = self.tools[pred.next_tool_name](**pred.next_tool_args)\n                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/utils/callback.py\", line 324, in sync_wrapper\n    return fn(instance, *args, **kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 179, in __call__\n    parsed_kwargs = self._validate_and_parse_args(**kwargs)\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/dspy/adapters/types/tool.py\", line 143, in _validate_and_parse_args\n    parsed = pydantic_wrapper.model_validate({\"value\": v})\n  File \"/Users/dev/workspace/dsrs-release/.venv/lib/python3.13/site-packages/pydantic/main.py\", line 732, in model_validate\n    return cls.__pydantic_validator__.validate_python(\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^\n        obj,\n        ^^^^\n    ...<5 lines>...\n        by_name=by_name,\n        ^^^^^^^^^^^^^^^^\n    )\n    ^\npydantic_core._pydantic_core.ValidationError: 1 validation error for Wrapper\nvalue\n  Input should be a valid string [type=string_type, input_value=3, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type",
+      "exception_line": "    For further information visit https://errors.pydantic.dev/2.13/v/string_type",
+      "parser": true
+    },
+    "good_call": {
+      "tool": "count_to",
+      "args": {
+        "limit": 3
+      },
+      "observation_0": "0,1,2"
+    }
+  }
+}

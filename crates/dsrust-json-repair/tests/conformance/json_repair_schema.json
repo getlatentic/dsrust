@@ -1,0 +1,8327 @@
+{
+ "source": "json_repair 0.61.7 with jsonschema 4.26.0",
+ "what": "What a schema-guided repair returns, and every question the repairer asked the validator to get there. The Rust seam replays the answers and fails on a question that was never asked, so the repair decisions are tested without reimplementing JSON Schema.",
+ "cases": [
+  {
+   "name": "pattern_0",
+   "why": "pattern '' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_1",
+   "why": "pattern '^' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_2",
+   "why": "pattern '$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_3",
+   "why": "pattern '^$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_4",
+   "why": "pattern '^$' against key ''",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$."
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_5",
+   "why": "pattern 'id' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_6",
+   "why": "pattern 'id' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.idx"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_7",
+   "why": "pattern 'id' against key 'xid'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"xid\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"xid\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.xid"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"xid\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_8",
+   "why": "pattern 'id' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_9",
+   "why": "pattern '^id' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_10",
+   "why": "pattern '^id' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.idx"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_11",
+   "why": "pattern '^id' against key 'xid'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"xid\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"xid\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"xid\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_12",
+   "why": "pattern 'id$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_13",
+   "why": "pattern 'id$' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_14",
+   "why": "pattern 'id$' against key 'xid'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"xid\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"xid\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.xid"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"xid\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_15",
+   "why": "pattern '^id$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_16",
+   "why": "pattern '^id$' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_17",
+   "why": "pattern '^a.*z$' against key 'abcz'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^a.*z$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"abcz\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"abcz\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^a.*z$\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_18",
+   "why": "pattern 'a|b' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a|b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a|b\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_19",
+   "why": "pattern 'a+' against key 'aa'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a+": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"aa\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"aa\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a+\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_20",
+   "why": "pattern '[ab]' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "[ab]": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"[ab]\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_21",
+   "why": "pattern '(a)' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "(a)": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"(a)\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_22",
+   "why": "pattern '^^id' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^^id\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_23",
+   "why": "pattern 'id$$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$$\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_24",
+   "why": "pattern '^^id' against key '^id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"^id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"^id\": 1}",
+   "log": [
+    {
+     "text": "Skipped unsupported patternProperties regex '^^id' while parsing object key '^id'",
+     "context": "{\"^id\": 1"
+    },
+    {
+     "text": "Skipped unsupported patternProperties regex '^^id'",
+     "context": "$.^id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"^id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_25",
+   "why": "pattern 'id$$' against key 'id$'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id$\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id$\": 1}",
+   "log": [
+    {
+     "text": "Skipped unsupported patternProperties regex 'id$$' while parsing object key 'id$'",
+     "context": "{\"id$\": 1"
+    },
+    {
+     "text": "Skipped unsupported patternProperties regex 'id$$'",
+     "context": "$.id$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id$\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_26",
+   "why": "pattern 'a.b' against key 'a.b'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a.b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a.b\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a.b\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a.b\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_27",
+   "why": "pattern 'a|b' against key 'a|b'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a|b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a|b\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a|b\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a|b\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_28",
+   "why": "pattern 'a+' against key 'a+'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a+": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a+\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a+\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a+\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_0",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"١٢٣\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u0661\\u0662\\u0663\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_1",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"１２３\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\uff11\\uff12\\uff13\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_2",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_000\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1000}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_000\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1000}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_3",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \" 12 \"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 12}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \" 12 \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 12}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_4",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"+5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 5}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"+5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 5}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_5",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1e5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 100000}",
+   "log": [
+    {
+     "text": "Coerced number to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1e5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 100000}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_6",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"  1.5  \"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  1.5  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_7",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"inf\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_8",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"-inf\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_9",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"INFINITY\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"INFINITY\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_10",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"nan\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"nan\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_11",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"NaN\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"NaN\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_12",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"0x1f\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0x1f\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_13",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"0b101\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0b101\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_14",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"_1\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_15",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_16",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1__0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1__0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_17",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_.0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_.0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_18",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"²\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u00b2\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_19",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_20",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"  \"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_21",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"-0\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_22",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_0.0_1\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_0.0_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_0",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"١٢٣\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u0661\\u0662\\u0663\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_1",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"１２３\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\uff11\\uff12\\uff13\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_2",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_000\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1000.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_000\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1000.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_3",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \" 12 \"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 12.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \" 12 \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 12.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_4",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"+5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 5.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"+5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 5.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_5",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1e5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 100000.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1e5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 100000.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_6",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"  1.5  \"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1.5}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  1.5  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1.5}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_7",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"inf\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": Infinity}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": Infinity}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_8",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"-inf\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": -Infinity}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": -Infinity}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_9",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"INFINITY\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": Infinity}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"INFINITY\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": Infinity}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_10",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"nan\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": NaN}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"nan\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": NaN}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_11",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"NaN\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": NaN}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"NaN\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": NaN}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_12",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"0x1f\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0x1f\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_13",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"0b101\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0b101\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_14",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"_1\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_15",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_16",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1__0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1__0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_17",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_.0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_.0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_18",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"²\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u00b2\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_19",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_20",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"  \"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_21",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"-0\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": -0.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": -0.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_22",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_0.0_1\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 10.01}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_0.0_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 10.01}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_enum_a_number",
+   "why": "`enum` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not subscriptable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_enum_a_string",
+   "why": "`enum` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_enum_null",
+   "why": "`enum` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Enum at $.a has no values.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_enum_an_empty_list",
+   "why": "`enum` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Enum at $.a has no values.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_const_a_number",
+   "why": "`const` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 7}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with const",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 7}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"const\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_const_a_string",
+   "why": "`const` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_const_null",
+   "why": "`const` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_const_an_empty_list",
+   "why": "`const` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_default_a_number",
+   "why": "`default` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 7}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with default",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 7}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"default\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_default_a_string",
+   "why": "`default` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_default_null",
+   "why": "`default` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_default_an_empty_list",
+   "why": "`default` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_items_a_number",
+   "why": "`items` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_items_a_string",
+   "why": "`items` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_items_null",
+   "why": "`items` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_items_an_empty_list",
+   "why": "`items` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"prefixItems\": []}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_a_number",
+   "why": "`additionalItems` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_a_string",
+   "why": "`additionalItems` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_null",
+   "why": "`additionalItems` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_an_empty_list",
+   "why": "`additionalItems` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_a_number",
+   "why": "`properties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_a_string",
+   "why": "`properties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_null",
+   "why": "`properties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_an_empty_list",
+   "why": "`properties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_a_number",
+   "why": "`patternProperties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_a_string",
+   "why": "`patternProperties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_null",
+   "why": "`patternProperties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_an_empty_list",
+   "why": "`patternProperties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_a_number",
+   "why": "`additionalProperties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_a_string",
+   "why": "`additionalProperties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_null",
+   "why": "`additionalProperties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_an_empty_list",
+   "why": "`additionalProperties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_a_number",
+   "why": "`required` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_a_string",
+   "why": "`required` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_null",
+   "why": "`required` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_an_empty_list",
+   "why": "`required` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_a_number",
+   "why": "`minItems` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_a_string",
+   "why": "`minItems` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_null",
+   "why": "`minItems` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_an_empty_list",
+   "why": "`minItems` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_a_number",
+   "why": "`minProperties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_a_string",
+   "why": "`minProperties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_null",
+   "why": "`minProperties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_an_empty_list",
+   "why": "`minProperties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_oneOf_a_number",
+   "why": "`oneOf` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_oneOf_a_string",
+   "why": "`oneOf` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema must be an object.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_oneOf_null",
+   "why": "`oneOf` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_oneOf_an_empty_list",
+   "why": "`oneOf` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "No schema matched the value.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_a_number",
+   "why": "`anyOf` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_a_string",
+   "why": "`anyOf` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema must be an object.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_null",
+   "why": "`anyOf` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_an_empty_list",
+   "why": "`anyOf` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "No schema matched the value.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_allOf_a_number",
+   "why": "`allOf` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not subscriptable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_allOf_a_string",
+   "why": "`allOf` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Schema must be an object.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_allOf_null",
+   "why": "`allOf` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"allOf\": null, \"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'NoneType' object is not iterable",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_allOf_an_empty_list",
+   "why": "`allOf` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"allOf\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_a_number",
+   "why": "the root `type` is a number",
+   "schema": {
+    "type": 7,
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": 7, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'int' object is not iterable",
+     "raised_type": "TypeError"
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": 7, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'int' object is not iterable",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_null",
+   "why": "the root `type` is null",
+   "schema": {
+    "type": null,
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": null, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'NoneType' object is not iterable",
+     "raised_type": "TypeError"
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": null, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'NoneType' object is not iterable",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_an_empty_list",
+   "why": "the root `type` is an empty list",
+   "schema": {
+    "type": [],
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "No schema type matched the value.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": [], \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_a_nested_list",
+   "why": "the root `type` is a nested list",
+   "schema": {
+    "type": [
+     []
+    ],
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Unsupported schema type [] at $.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": [[]], \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "unhashable type: 'list'",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "number_to_string",
+   "why": "a number where a string was declared",
+   "schema": {
+    "type": "string"
+   },
+   "input": "7",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "\"7\"",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "7",
+     "schema": "{\"type\": \"string\"}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "\"7\"",
+     "schema": "{\"type\": \"string\"}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "string_to_integer",
+   "why": "and the reverse",
+   "schema": {
+    "type": "integer"
+   },
+   "input": "\"7\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "7",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"7\"",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "7",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "float_to_integer",
+   "why": "a whole float narrows",
+   "schema": {
+    "type": "integer"
+   },
+   "input": "7.0",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "7.0",
+   "log": [],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "7.0",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "float_that_will_not_narrow",
+   "why": "and a fractional one does not",
+   "schema": {
+    "type": "integer"
+   },
+   "input": "7.5",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "'' is not of type 'integer'",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "7.5",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": false
+    },
+    {
+     "method": "validate",
+     "value": "\"\"",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": false,
+     "message": "'' is not of type 'integer'"
+    }
+   ]
+  },
+  {
+   "name": "string_to_number",
+   "why": "a decimal in quotes",
+   "schema": {
+    "type": "number"
+   },
+   "input": "\"1.5\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "1.5",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"1.5\"",
+     "schema": "{\"type\": \"number\"}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "1.5",
+     "schema": "{\"type\": \"number\"}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "yes_is_true",
+   "why": "one of the ten spellings a boolean takes",
+   "schema": {
+    "type": "boolean"
+   },
+   "input": "\"yes\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "true",
+   "log": [
+    {
+     "text": "Coerced string to boolean",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"yes\"",
+     "schema": "{\"type\": \"boolean\"}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "true",
+     "schema": "{\"type\": \"boolean\"}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "bool_is_not_an_integer",
+   "why": "even though Python says True == 1",
+   "schema": {
+    "type": "integer"
+   },
+   "input": "true",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "'' is not of type 'integer'",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "true",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": false
+    },
+    {
+     "method": "validate",
+     "value": "\"\"",
+     "schema": "{\"type\": \"integer\"}",
+     "ok": false,
+     "message": "'' is not of type 'integer'"
+    }
+   ]
+  },
+  {
+   "name": "null_type",
+   "why": "the only value a null schema takes",
+   "schema": {
+    "type": "null"
+   },
+   "input": "null",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "null",
+   "log": [],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "null",
+     "schema": "{\"type\": \"null\"}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "unsupported_type",
+   "why": "a type the coercions have no rule for",
+   "schema": {
+    "type": "date"
+   },
+   "input": "\"today\"",
+   "mode": "standard",
+   "ok": false,
+   "error": "UnknownType",
+   "message": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    'today'",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"today\"",
+     "schema": "{\"type\": \"date\"}",
+     "ok": false,
+     "raised": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    'today'",
+     "raised_type": "UnknownType"
+    }
+   ]
+  },
+  {
+   "name": "required_present",
+   "why": "the ordinary path",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{a: \"1\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: \"1\"}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: \"1\"}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: \"1\"}"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "required_missing",
+   "why": "a required property with nothing to fill it",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}, \"required\": [\"a\"]}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "default_inserted_while_parsing",
+   "why": "the parser fills an absent optional",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer",
+      "default": 3
+     }
+    }
+   },
+   "input": "{b: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 3, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Inserted default value for missing property",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 3, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 3}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "default_inserted_while_repairing",
+   "why": "and so does the repair pass over a valid-JSON value the schema rejected",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer",
+      "default": 3
+     },
+     "b": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "b"
+    ]
+   },
+   "input": "{\"b\": \"1\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 3, \"b\": 1}",
+   "log": [
+    {
+     "text": "Inserted default value for missing property",
+     "context": "$.a"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$.b"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"b\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 3}, \"b\": {\"type\": \"integer\"}}, \"required\": [\"b\"]}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 3, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 3}, \"b\": {\"type\": \"integer\"}}, \"required\": [\"b\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "value_missing_takes_default",
+   "why": "a member with no value at all takes it too",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer",
+      "default": 3
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 3}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with default",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 3}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 3}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "additional_properties_false",
+   "why": "a key the schema forbids is dropped",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    },
+    "additionalProperties": false
+   },
+   "input": "{a: 1, b: 2}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1, b: 2"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1, b: 2}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1, b: 2}"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1, b: 2}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1, b: 2}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1, b: 2}"
+    },
+    {
+     "text": "Dropped extra property not covered by schema",
+     "context": "$.b"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}, \"additionalProperties\": false}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "additional_properties_schema",
+   "why": "and one it constrains is coerced",
+   "schema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": {
+     "type": "string"
+    }
+   },
+   "input": "{a: 1}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"1\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1}"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {}, \"additionalProperties\": {\"type\": \"string\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_properties",
+   "why": "a key matched by an anchored literal",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{id_x: 7}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id_x\": \"7\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{id_x: 7}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{id_x: 7}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{id_x: 7}"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$.id_x"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id_x\": \"7\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_properties_unsupported",
+   "why": "a real regex, which is skipped rather than matched",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^a.*z$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{abcz: 7}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "7 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"abcz\": 7}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^a.*z$\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "7 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "min_properties",
+   "why": "an object that does not carry enough",
+   "schema": {
+    "type": "object",
+    "minProperties": 2,
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{a: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Object at $ does not meet minProperties.",
+   "calls": []
+  },
+  {
+   "name": "property_schema_is_null",
+   "why": "`properties.get(key)` cannot tell an absent property from one stored as null, and the repair pass reaches `.get` on it",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": null
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "AttributeError",
+   "message": "'NoneType' object has no attribute 'get'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": null}}",
+     "ok": false,
+     "raised": "'NoneType' object has no attribute 'get'",
+     "raised_type": "AttributeError"
+    }
+   ]
+  },
+  {
+   "name": "property_schema_is_null_and_required",
+   "why": "the same, where the salvage fill skips it and the required check still refuses",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": null
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": []
+  },
+  {
+   "name": "object_from_json_string",
+   "why": "a value that is an object inside quotes",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "\"{\\\"a\\\": 1}\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "Unwrapped JSON string to object to match schema",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"{\\\"a\\\": 1}\"",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "parser_schema_is_not_an_object",
+   "why": "an object arriving where the schema is a scalar, so the parser carries no object config and the repair pass refuses it",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{a: {b: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected string at $.a.",
+   "calls": []
+  },
+  {
+   "name": "parser_properties_not_a_dict",
+   "why": "`properties` guarded to `{}` for the parser, and handed to jsonschema unguarded — the validator raises `AttributeError` from `_keywords.py`, which is neither a refusal nor an answer",
+   "schema": {
+    "type": "object",
+    "properties": 7
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "AttributeError",
+   "message": "'int' object has no attribute 'items'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": 7}",
+     "ok": false,
+     "raised": "'int' object has no attribute 'items'",
+     "raised_type": "AttributeError"
+    }
+   ]
+  },
+  {
+   "name": "parser_pattern_properties_not_a_dict",
+   "why": "the same guard and the same crash one keyword over",
+   "schema": {
+    "type": "object",
+    "properties": {},
+    "patternProperties": 7
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "AttributeError",
+   "message": "'int' object has no attribute 'items'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {}, \"patternProperties\": 7}",
+     "ok": false,
+     "raised": "'int' object has no attribute 'items'",
+     "raised_type": "AttributeError"
+    }
+   ]
+  },
+  {
+   "name": "items_schema",
+   "why": "one schema for every item",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "[\"1\", \"2\"]",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$[0]"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$[1]"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "[\"1\", \"2\"]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "[1, 2]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "items_tuple",
+   "why": "a schema per position",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "integer"
+     }
+    ]
+   },
+   "input": "[1, '2']",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[\"1\", 2]",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$[0]"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$[1]"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[\"1\", 2]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}, {\"type\": \"integer\"}]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "additional_items_false",
+   "why": "a tuple that forbids the rest",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "string"
+     }
+    ],
+    "additionalItems": false
+   },
+   "input": "['a', 'b']",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[\"a\"]",
+   "log": [
+    {
+     "text": "Dropped extra array item not covered by schema",
+     "context": "$[1]"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[\"a\"]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}], \"items\": false}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "additional_items_schema",
+   "why": "and one that constrains them",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "string"
+     }
+    ],
+    "additionalItems": {
+     "type": "integer"
+    }
+   },
+   "input": "['a', '2']",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[\"a\", 2]",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$[1]"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[\"a\", 2]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}], \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "min_items",
+   "why": "an array that is too short",
+   "schema": {
+    "type": "array",
+    "minItems": 3
+   },
+   "input": "[1, 2",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Array at $ does not meet minItems.",
+   "calls": []
+  },
+  {
+   "name": "wrapped_in_array",
+   "why": "a scalar where an array was declared",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "7",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[7]",
+   "log": [
+    {
+     "text": "Wrapped value in array to match schema",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "7",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "[7]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "array_from_json_string",
+   "why": "an array inside quotes",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "\"[1, 2]\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": [
+    {
+     "text": "Unwrapped JSON string to array to match schema",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"[1, 2]\"",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "[1, 2]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "one_of_second_branch",
+   "why": "the first branch fails and the second takes it",
+   "schema": {
+    "oneOf": [
+     {
+      "type": "integer"
+     },
+     {
+      "type": "string"
+     }
+    ]
+   },
+   "input": "\"abc\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "\"abc\"",
+   "log": [],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"abc\"",
+     "schema": "{\"oneOf\": [{\"type\": \"integer\"}, {\"type\": \"string\"}]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "any_of_no_branch",
+   "why": "neither branch takes it",
+   "schema": {
+    "anyOf": [
+     {
+      "type": "integer"
+     },
+     {
+      "type": "boolean"
+     }
+    ]
+   },
+   "input": "\"abc\"",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "'' is not valid under any of the given schemas",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"abc\"",
+     "schema": "{\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"boolean\"}]}",
+     "ok": false
+    },
+    {
+     "method": "validate",
+     "value": "\"\"",
+     "schema": "{\"anyOf\": [{\"type\": \"integer\"}, {\"type\": \"boolean\"}]}",
+     "ok": false,
+     "message": "'' is not valid under any of the given schemas"
+    }
+   ]
+  },
+  {
+   "name": "all_of",
+   "why": "every subschema applied in turn",
+   "schema": {
+    "allOf": [
+     {
+      "type": "string"
+     },
+     {
+      "enum": [
+       "7"
+      ]
+     }
+    ]
+   },
+   "input": "7",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "\"7\"",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "7",
+     "schema": "{\"allOf\": [{\"type\": \"string\"}, {\"enum\": [\"7\"]}]}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "\"7\"",
+     "schema": "{\"allOf\": [{\"type\": \"string\"}, {\"enum\": [\"7\"]}]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "type_union",
+   "why": "a `type` that lists several",
+   "schema": {
+    "type": [
+     "integer",
+     "string"
+    ]
+   },
+   "input": "\"abc\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "\"abc\"",
+   "log": [],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"abc\"",
+     "schema": "{\"type\": [\"integer\", \"string\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "type_union_first_wins",
+   "why": "and the first that fits wins",
+   "schema": {
+    "type": [
+     "integer",
+     "string"
+    ]
+   },
+   "input": "\"12\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "\"12\"",
+   "log": [],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"12\"",
+     "schema": "{\"type\": [\"integer\", \"string\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "one_of_with_a_broken_branch",
+   "why": "a subschema the repairer cannot read is a branch that failed, not an error",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": [
+       {
+        "type": "date"
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    }
+   },
+   "input": "{a: 7",
+   "mode": "standard",
+   "ok": false,
+   "error": "UnknownType",
+   "message": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    '7'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "\"7\"",
+     "schema": "{\"type\": \"string\"}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "\"7\"",
+     "schema": "{\"type\": \"string\"}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": \"7\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"oneOf\": [{\"type\": \"date\"}, {\"type\": \"string\"}]}}}",
+     "ok": false,
+     "raised": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    '7'",
+     "raised_type": "UnknownType"
+    }
+   ]
+  },
+  {
+   "name": "enum_match",
+   "why": "a value that is one of them",
+   "schema": {
+    "enum": [
+     "a",
+     "b"
+    ]
+   },
+   "input": "'a'",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "'' is not one of ['a', 'b']",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "\"\"",
+     "schema": "{\"enum\": [\"a\", \"b\"]}",
+     "ok": false,
+     "message": "'' is not one of ['a', 'b']"
+    }
+   ]
+  },
+  {
+   "name": "enum_miss",
+   "why": "and one that is not",
+   "schema": {
+    "enum": [
+     "a",
+     "b"
+    ]
+   },
+   "input": "'c'",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "'' is not one of ['a', 'b']",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "\"\"",
+     "schema": "{\"enum\": [\"a\", \"b\"]}",
+     "ok": false,
+     "message": "'' is not one of ['a', 'b']"
+    }
+   ]
+  },
+  {
+   "name": "const_match",
+   "why": "a fixed value",
+   "schema": {
+    "const": 5
+   },
+   "input": "5",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "5",
+   "log": [],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "5",
+     "schema": "{\"const\": 5}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "const_miss",
+   "why": "and the wrong one",
+   "schema": {
+    "const": 5
+   },
+   "input": "6",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "5 was expected",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "6",
+     "schema": "{\"const\": 5}",
+     "ok": false
+    },
+    {
+     "method": "validate",
+     "value": "\"\"",
+     "schema": "{\"const\": 5}",
+     "ok": false,
+     "message": "5 was expected"
+    }
+   ]
+  },
+  {
+   "name": "enum_fills_a_missing_value",
+   "why": "the first enum value stands in for nothing at all",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       "x",
+       "y"
+      ]
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"x\"}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with first enum value",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"x\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [\"x\", \"y\"]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "type_present_but_not_a_string",
+   "why": "blocks the inference from the schema's shape, so nothing is filled — a `_` arm would read `properties` and fill `{}`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": 7,
+      "properties": {}
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Cannot infer missing value at $.a.",
+   "calls": []
+  },
+  {
+   "name": "enum_present_but_empty",
+   "why": "no first value to take",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": []
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Enum at $.a has no values.",
+   "calls": []
+  },
+  {
+   "name": "enum_present_but_a_string",
+   "why": "upstream subscripts whatever `enum` holds, so a string yields its first character",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": "abc"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"a\"}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with first enum value",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"a\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": \"abc\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_resolved",
+   "why": "a `$ref` into the root schema",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/small"
+     }
+    },
+    "$defs": {
+     "small": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{a: \"4\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 4}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: \"4\"}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: \"4\"}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: \"4\"}"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 4}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/small\"}}, \"$defs\": {\"small\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_unresolvable",
+   "why": "a pointer to nothing",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/missing"
+     }
+    }
+   },
+   "input": "{a: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Unresolvable $ref: #/$defs/missing",
+   "calls": []
+  },
+  {
+   "name": "ref_circular",
+   "why": "a pointer that comes back to itself",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/loop"
+     }
+    },
+    "$defs": {
+     "loop": {
+      "$ref": "#/$defs/loop"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Circular $ref detected: #/$defs/loop",
+   "calls": []
+  },
+  {
+   "name": "ref_circular_pair",
+   "why": "and a two-step cycle, which identity catches and a ref-name set catches for a different reason",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/x"
+     }
+    },
+    "$defs": {
+     "x": {
+      "$ref": "#/$defs/y"
+     },
+     "y": {
+      "$ref": "#/$defs/x"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Circular $ref detected: #/$defs/y",
+   "calls": []
+  },
+  {
+   "name": "ref_not_a_string",
+   "why": "`$ref` present but a number",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": 7
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "$ref must be a string.",
+   "calls": []
+  },
+  {
+   "name": "ref_to_a_boolean_schema",
+   "why": "a pointer at `true`, which resolves to the schema that accepts anything",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/any"
+     }
+    },
+    "$defs": {
+     "any": true
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/any\"}}, \"$defs\": {\"any\": true}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_chain",
+   "why": "three hops to a real schema",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/one"
+     }
+    },
+    "$defs": {
+     "one": {
+      "$ref": "#/$defs/two"
+     },
+     "two": {
+      "$ref": "#/$defs/three"
+     },
+     "three": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"1\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/one\"}}, \"$defs\": {\"one\": {\"$ref\": \"#/$defs/two\"}, \"two\": {\"$ref\": \"#/$defs/three\"}, \"three\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_escaped_pointer",
+   "why": "a pointer whose segment holds `~1` and `~0`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/a~1b~0c"
+     }
+    },
+    "$defs": {
+     "a/b~c": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"1\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/a~1b~0c\"}}, \"$defs\": {\"a/b~c\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_not_local",
+   "why": "a pointer out of the document",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "http://x/y"
+     }
+    }
+   },
+   "input": "{a: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Unsupported $ref: http://x/y",
+   "calls": []
+  },
+  {
+   "name": "boolean_schema_true",
+   "why": "the schema that accepts anything",
+   "schema": true,
+   "input": "{a: 1}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1}"
+    }
+   ],
+   "calls": []
+  },
+  {
+   "name": "boolean_schema_false",
+   "why": "and the one that accepts nothing",
+   "schema": false,
+   "input": "{a: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema does not allow any values.",
+   "calls": []
+  },
+  {
+   "name": "salvage_const_is_an_object",
+   "why": "a const deep-copied rather than shared",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": {
+       "k": [
+        1,
+        2
+       ]
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {\"k\": [1, 2]}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"k\": [1, 2]}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"const\": {\"k\": [1, 2]}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_default_is_an_object",
+   "why": "the same copy, reached through `default` and logged as one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": {
+       "k": {
+        "deep": true
+       }
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {\"k\": {\"deep\": true}}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"k\": {\"deep\": true}}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"default\": {\"k\": {\"deep\": true}}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_enum_first_is_an_object",
+   "why": "and through the first enum value",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       {
+        "k": 1
+       },
+       2
+      ]
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {\"k\": 1}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"k\": 1}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [{\"k\": 1}, 2]}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_empty_array",
+   "why": "a required array with no default is filled empty",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": [], \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [], \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\"}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_empty_object",
+   "why": "and a required object likewise",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"object\"}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_inferred_object",
+   "why": "the salvage fill infers a container from its shape too, and asks `is_array_schema` before `is_object_schema` where `_fill_missing` asks the other way round",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": {
+       "z": {
+        "type": "integer"
+       }
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": {\"z\": {\"type\": \"integer\"}}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_inferred_array",
+   "why": "and the array half of that same order",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": {
+       "type": "integer"
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": [], \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [], \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": {\"type\": \"integer\"}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_drops_a_bad_item",
+   "why": "an item that will not fit is dropped rather than fatal",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "[1, \"x\", 3]",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "[1, 3]",
+   "log": [
+    {
+     "text": "Dropped invalid array item while salvaging",
+     "context": "$[1]"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "[1, \"x\", 3]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "[1, 3]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_does_not_drop_a_broken_schema",
+   "why": "an item schema the repairer cannot *read* is re-raised instead, which is the one place `SchemaDefinitionError` is told apart from an ordinary refusal",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "date"
+    }
+   },
+   "input": "[1, 2",
+   "mode": "salvage",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Unsupported schema type date at $[0].",
+   "calls": []
+  },
+  {
+   "name": "salvage_fills_required",
+   "why": "a required property filled from its default",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer",
+      "default": 9
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{}",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": 9}",
+   "log": [
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 9}}, \"required\": [\"a\"]}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 9}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 9}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_type_not_a_string",
+   "why": "the same `is None` guard on the salvage path: nothing is filled, so the required property is still missing",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": 7,
+      "items": {}
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": []
+  },
+  {
+   "name": "salvage_fills_required_while_parsing",
+   "why": "the same fill, reached through the parser rather than the repair pass — `_finalize_object` skips a *required* key, leaving it to salvage",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer",
+      "default": 9
+     },
+     "b": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": 9, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 9, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"default\": 9}, \"b\": {\"type\": \"integer\"}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_maps_a_list",
+   "why": "a list mapped onto the properties in order",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     },
+     "b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "[1, 'x']",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": \"x\"}",
+   "log": [
+    {
+     "text": "Mapped array to object by schema property order",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1, \"b\": \"x\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}, \"b\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_unwraps_the_root",
+   "why": "a single-item root array unwrapped",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     },
+     "b": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "[{\"a\": 1, \"b\": 2}]",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": 2}",
+   "log": [
+    {
+     "text": "Unwrapped single-item root array to object while salvaging",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "[{\"a\": 1, \"b\": 2}]",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}, \"b\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1, \"b\": 2}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}, \"b\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_repairs_a_json_string",
+   "why": "a malformed object inside quotes, repaired first",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "\"{a: 1\"",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "Repaired malformed JSON string to object to match schema",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"{a: 1\"",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_set_like_object",
+   "why": "set-like members read as keys with null values",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {},
+     "b": {}
+    }
+   },
+   "input": "{\"a\", \"b\"}",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": null, \"b\": null}",
+   "log": [
+    {
+     "text": "While parsing a string in Object Key context, we detected a quoted section that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\", \"b\"}"
+    },
+    {
+     "text": "While parsing a string in Object Key context, we detected a quoted section that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\", \"b\"}"
+    },
+    {
+     "text": "Parsed object is empty but salvage schema expects an object, reparsing set-like members as null-valued object keys",
+     "context": "{\"a\", \"b\"}"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "{\"a\", \"b\"}"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": null, \"b\": null}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {}, \"b\": {}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_string",
+   "why": "an empty string, since a string has one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"\"}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_boolean",
+   "why": "and a boolean has false",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": false}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with false",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": false}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_null",
+   "why": "null is a value, not the absence of one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "null"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": null}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with null",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": null}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"null\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_array",
+   "why": "an empty array where none is required",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty array",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": []}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_array_min",
+   "why": "and a refusal where `minItems` says it cannot be empty",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array",
+      "minItems": 2
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Array at $.a requires at least 2 items.",
+   "calls": []
+  },
+  {
+   "name": "missing_value_object",
+   "why": "the same pair for objects",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {}}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty object",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"object\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_object_min",
+   "why": "held by `minProperties` rather than `minItems`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object",
+      "minProperties": 1
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Object at $.a requires at least 1 properties.",
+   "calls": []
+  },
+  {
+   "name": "missing_value_union",
+   "why": "a union tries each member in order and takes the first that fills",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": [
+       "array",
+       "string"
+      ]
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty array",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[]",
+     "schema": "{\"type\": \"array\"}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": []}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": [\"array\", \"string\"]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_union_unfillable",
+   "why": "and refuses when no member can",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": [
+       "date",
+       "time"
+      ]
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Cannot infer missing value at $.a.",
+   "calls": []
+  },
+  {
+   "name": "missing_value_inferred_object",
+   "why": "no `type`, so the shape decides: `properties` means object",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": {
+       "z": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {}}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty object",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": {\"z\": {\"type\": \"integer\"}}}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_inferred_array",
+   "why": "and `items` means array",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": {
+       "type": "integer"
+      }
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty array",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": []}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": {\"type\": \"integer\"}}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_untyped",
+   "why": "a schema with neither is not a container and cannot be filled",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "description": "no type"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Cannot infer missing value at $.a.",
+   "calls": []
+  },
+  {
+   "name": "property_schema_true",
+   "why": "a property whose schema is `true` passes its value through",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": true
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": true}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "property_schema_false",
+   "why": "and `false` refuses it, one property deep rather than at the root",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": false
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema does not allow any values.",
+   "calls": []
+  },
+  {
+   "name": "property_schema_empty",
+   "why": "an empty object schema constrains nothing",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {}
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "property_object_shaped",
+   "why": "no `type`, and the shape says object",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": {
+       "b": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   },
+   "input": "{a: {b: \"1\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {\"b\": 1}}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: {b: \"1\""
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: {b: \"1\"}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: {b: \"1\"}"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: {b: \"1\"}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: {b: \"1\"}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: {b: \"1\"}"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a.b"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"b\": 1}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": {\"b\": {\"type\": \"integer\"}}}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "property_array_shaped",
+   "why": "no `type`, and the shape says array",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": {
+       "type": "integer"
+      }
+     }
+    }
+   },
+   "input": "{a: [\"1\"]",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": [1]}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: [\"1\"]"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: [\"1\"]"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: [\"1\"]"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a[0]"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [1]}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": {\"type\": \"integer\"}}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "one_of_branch_raises_type_error",
+   "why": "a branch whose schema raises TypeError propagates it rather than reading as a failed branch",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": [
+       {
+        "type": "object",
+        "required": 7
+       },
+       {
+        "type": "string"
+       }
+      ]
+     }
+    }
+   },
+   "input": "{a: {b: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "type_union_raises_type_error",
+   "why": "the same rule inside a `type` union",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": [
+       "object",
+       "array"
+      ],
+      "required": 7
+     }
+    }
+   },
+   "input": "{a: {b: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "required_none",
+   "why": "None is not iterable",
+   "schema": {
+    "type": "object",
+    "required": null
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "required_bool",
+   "why": "nor is a bool",
+   "schema": {
+    "type": "object",
+    "required": true
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'bool' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "required_float",
+   "why": "nor a float",
+   "schema": {
+    "type": "object",
+    "required": 2.5
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'float' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "required_unhashable_member",
+   "why": "a list inside the list cannot be hashed",
+   "schema": {
+    "type": "object",
+    "required": [
+     [
+      "u"
+     ]
+    ]
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "unhashable type: 'list'",
+   "calls": []
+  },
+  {
+   "name": "required_unhashable_dict_member",
+   "why": "and neither can a dict",
+   "schema": {
+    "type": "object",
+    "required": [
+     {
+      "k": 1
+     }
+    ]
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "unhashable type: 'dict'",
+   "calls": []
+  },
+  {
+   "name": "required_as_string",
+   "why": "a string is iterated per character, so `ab` requires `a` and `b`",
+   "schema": {
+    "type": "object",
+    "required": "ab"
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: b",
+   "calls": []
+  },
+  {
+   "name": "required_as_dict",
+   "why": "and a dict contributes its keys",
+   "schema": {
+    "type": "object",
+    "required": {
+     "k": 1
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: k",
+   "calls": []
+  },
+  {
+   "name": "enum_array_across_numeric_types",
+   "why": "an int array matches its float twin",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       [
+        1.0
+       ]
+      ]
+     }
+    }
+   },
+   "input": "{a: [1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": [1]}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: [1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: [1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: [1"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "{a: [1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [1]}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [[1.0]]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "enum_object_across_numeric_types",
+   "why": "and an object's values compare the same way",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       {
+        "x": 1.0
+       }
+      ]
+     }
+    }
+   },
+   "input": "{a: {x: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {\"x\": 1}}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: {x: 1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"x\": 1}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [{\"x\": 1.0}]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "enum_length_mismatch",
+   "why": "one item more is no match",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       [
+        1
+       ]
+      ]
+     }
+    }
+   },
+   "input": "{a: [1, 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Value at $.a does not match enum.",
+   "calls": []
+  },
+  {
+   "name": "enum_bigint_against_float",
+   "why": "an integer wider than a machine word against the float that equals it exactly",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       1.2676506002282294e+30
+      ]
+     }
+    }
+   },
+   "input": "{a: 1267650600228229401496703205376",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1267650600228229401496703205376}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1267650"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 12676506"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 12676506"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1267650600228229401496703205376}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [1.2676506002282294e+30]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "const_across_numeric_types",
+   "why": "const walks the same equality",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": [
+       1,
+       2
+      ]
+     }
+    }
+   },
+   "input": "{a: [1.0, 2.0",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": [1.0, 2.0]}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: [1.0, 2"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: [1.0, 2."
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: [1.0, 2."
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": " [1.0, 2.0"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [1.0, 2.0]}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"const\": [1, 2]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "json_string_holds_wrong_container",
+   "why": "the string parses, but to an array where an object was wanted",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "\"[1, 2]\"",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected object at $, got list.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"[1, 2]\"",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "json_string_malformed_standard",
+   "why": "a malformed container in a string is not repaired in standard mode",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "\"[1, 2\"",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $[2].",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"[1, 2\"",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "json_string_malformed_salvage",
+   "why": "and is in salvage",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "\"[1, 2\"",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": [
+    {
+     "text": "Repaired malformed JSON string to array to match schema",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"[1, 2\"",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "[1, 2]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "json_string_salvage_wrong_container",
+   "why": "salvage repairs the string and still finds the wrong container inside",
+   "schema": {
+    "type": "object",
+    "properties": {}
+   },
+   "input": "\"[1, 2\"",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected object at $, got list.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "\"[1, 2\"",
+     "schema": "{\"type\": \"object\", \"properties\": {}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "tuple_exact_length",
+   "why": "as many items as positional schemas, which is the loop's boundary",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "integer"
+     },
+     {
+      "type": "integer"
+     }
+    ]
+   },
+   "input": "[\"1\", \"2\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$[0]"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$[1]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[\"1\", \"2\""
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1, 2]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"integer\"}, {\"type\": \"integer\"}]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "tuple_additional_coerced",
+   "why": "extras coerced by `additionalItems`, whose index arithmetic starts where the tuple ends",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "integer"
+     }
+    ],
+    "additionalItems": {
+     "type": "string"
+    }
+   },
+   "input": "[1, 2, 3",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, \"2\", \"3\"]",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$[1]"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$[2]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[1, 2, 3"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1, \"2\", \"3\"]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"integer\"}], \"items\": {\"type\": \"string\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "tuple_additional_true",
+   "why": "`additionalItems: true` admits extras untouched",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "integer"
+     }
+    ],
+    "additionalItems": true
+   },
+   "input": "[\"1\", x, 3",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, \"x\", 3]",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$[0]"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "[\"1\", x, 3"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in array context, we found a ] or ,, stopping here",
+     "context": "[\"1\", x, 3"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "[\"1\", x, 3"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[\"1\", x, 3"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1, \"x\", 3]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"integer\"}]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "tuple_second_schema_broken",
+   "why": "a broken positional schema is a definition error even under salvage, where a bad *value* would drop",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "integer"
+     },
+     {
+      "type": "date"
+     }
+    ]
+   },
+   "input": "[1, 2",
+   "mode": "salvage",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Unsupported schema type date at $[1].",
+   "calls": []
+  },
+  {
+   "name": "salvage_drop_is_salvage_only",
+   "why": "the same failing item that salvage drops is a refusal in standard mode",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "[1, \"x\", 3",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $[1].",
+   "calls": []
+  },
+  {
+   "name": "min_items_float",
+   "why": "a float minItems counts",
+   "schema": {
+    "type": "array",
+    "minItems": 2.0
+   },
+   "input": "[1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Array at $ does not meet minItems.",
+   "calls": []
+  },
+  {
+   "name": "min_items_negative_float",
+   "why": "and a negative one does not",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array",
+      "minItems": -1.0
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": []
+  },
+  {
+   "name": "min_items_negative_int",
+   "why": "nor a negative integer",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array",
+      "minItems": -1
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": []
+  },
+  {
+   "name": "min_items_zero_fills",
+   "why": "zero is falsy, so the salvage fill proceeds",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array",
+      "minItems": 0
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{\"b\": 1}",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": [], \"b\": 1}",
+   "log": [
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\", \"minItems\": 0}}, \"required\": [\"a\"]}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": [], \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\", \"minItems\": 0}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "min_items_one_blocks_fill",
+   "why": "one is not, so it refuses",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array",
+      "minItems": 1
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{\"b\": 1}",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\", \"minItems\": 1}}, \"required\": [\"a\"]}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "min_properties_one_blocks_fill",
+   "why": "the object twin",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object",
+      "minProperties": 1
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{\"b\": 1}",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"object\", \"minProperties\": 1}}, \"required\": [\"a\"]}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "bool_from_int_one",
+   "why": "integer 1 is true",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": true}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    },
+    {
+     "text": "Coerced number to boolean",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": true}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "bool_from_int_zero",
+   "why": "and 0 is false",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: 0",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": false}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 0"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 0"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 0"
+    },
+    {
+     "text": "Coerced number to boolean",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": false}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "bool_from_int_two",
+   "why": "2 is neither",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: 2",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected boolean at $.a.",
+   "calls": []
+  },
+  {
+   "name": "bool_from_float_one",
+   "why": "1.0 is true",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: 1.0",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": true}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1.0"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1.0"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1.0"
+    },
+    {
+     "text": "Coerced number to boolean",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": true}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "bool_from_float_half",
+   "why": "0.5 is nothing",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: 0.5",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected boolean at $.a.",
+   "calls": []
+  },
+  {
+   "name": "bool_from_on",
+   "why": "the on/off pair of spellings",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: on",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": true}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: on"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: on"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: on"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: on"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: on"
+    },
+    {
+     "text": "Coerced string to boolean",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": true}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "bool_from_off_cased",
+   "why": "in any case",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: OFF",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": false}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: OFF"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: OFF"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: OFF"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: OFF"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: OFF"
+    },
+    {
+     "text": "Coerced string to boolean",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": false}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "bool_from_no",
+   "why": "and the yes/no pair",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{a: No",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": false}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: No"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: No"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: No"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: No"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: No"
+    },
+    {
+     "text": "Coerced string to boolean",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": false}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "type_as_array_object",
+   "why": "`type` spelled as a list, which the parser's config reads too",
+   "schema": {
+    "type": [
+     "object"
+    ],
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{a: \"1\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: \"1\""
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: \"1\""
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: \"1\""
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": [\"object\"], \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "parser_array_items",
+   "why": "an array schema guiding the parse itself, not the repair after it",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   },
+   "input": "[\"1\", \"2\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$[0]"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$[1]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[\"1\", \"2\""
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1, 2]",
+     "schema": "{\"type\": \"array\", \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "parser_tuple_items",
+   "why": "positional schemas during the parse",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "integer"
+     },
+     {
+      "type": "string"
+     }
+    ]
+   },
+   "input": "[1, 2",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1, \"2\"]",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$[1]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[1, 2"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1, \"2\"]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"integer\"}, {\"type\": \"string\"}]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "parser_tuple_additional_false",
+   "why": "extras forbidden during the parse",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "integer"
+     }
+    ],
+    "additionalItems": false
+   },
+   "input": "[\"1\", \"2\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[1]",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$[0]"
+    },
+    {
+     "text": "Dropped extra array item not covered by schema",
+     "context": "$[1]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[\"1\", \"2\""
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"integer\"}], \"items\": false}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "parser_tuple_additional_schema",
+   "why": "and extras coerced during it",
+   "schema": {
+    "type": "array",
+    "items": [
+     {
+      "type": "string"
+     }
+    ],
+    "additionalItems": {
+     "type": "integer"
+    }
+   },
+   "input": "[1, \"2\"",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "[\"1\", 2]",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$[0]"
+    },
+    {
+     "text": "Coerced string to integer",
+     "context": "$[1]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[1, \"2\""
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[\"1\", 2]",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}], \"items\": {\"type\": \"integer\"}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "parser_property_false",
+   "why": "a property schema of `false` read during the parse",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": false,
+     "b": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{a: 1, b: 2",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema does not allow any values.",
+   "calls": []
+  },
+  {
+   "name": "list_longer_than_properties",
+   "why": "more items than properties, which cannot map",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "[1, 2",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected object at $, got list.",
+   "calls": []
+  },
+  {
+   "name": "list_map_type_array_form",
+   "why": "`type` spelled as a one-element list still maps",
+   "schema": {
+    "type": [
+     "object"
+    ],
+    "properties": {
+     "a": {
+      "type": "integer"
+     },
+     "b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "[1, 'x'",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": \"x\"}",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[1, 'x'"
+    },
+    {
+     "text": "Mapped array to object by schema property order",
+     "context": "$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1, \"b\": \"x\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}, \"b\": {\"type\": \"string\"}}}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": 1, \"b\": \"x\"}",
+     "schema": "{\"type\": [\"object\"], \"properties\": {\"a\": {\"type\": \"integer\"}, \"b\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "list_map_blocked_by_array_type",
+   "why": "a schema that also allows arrays keeps the list",
+   "schema": {
+    "type": [
+     "object",
+     "array"
+    ],
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "[1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "[1]",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[1]",
+     "schema": "{\"type\": \"array\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "[1]",
+     "schema": "{\"type\": [\"object\", \"array\"], \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "list_map_standard_mode",
+   "why": "standard mode never maps",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     },
+     "b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "[1, 'x'",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected object at $, got list.",
+   "calls": []
+  },
+  {
+   "name": "set_like_object_standard",
+   "why": "set-like members are a salvage repair, not a standard one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {},
+     "b": {}
+    }
+   },
+   "input": "{\"a\", \"b\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected object at $, got list.",
+   "calls": []
+  }
+ ]
+}

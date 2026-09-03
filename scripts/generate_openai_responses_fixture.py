@@ -19,11 +19,16 @@ import pathlib
 import sys
 
 import dspy
+
+from pins import require
 import dspy.core.types as t
 from dspy.clients.openai_format import responses_to_lm_response, to_openai_responses_request
 
-PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "openai_responses.json"
+# Read from the pin rather than written here: a generator that names its own
+# version cannot follow a bump, and six of them refused to run at 3.3.0 for
+# exactly that reason while claiming the pin had drifted.
+PINNED = require("dspy")
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "openai_responses.json"
 
 
 def text(value: str) -> t.LMTextPart:
@@ -47,7 +52,20 @@ CONVERSATION = [
     t.LMMessage(role="tool", parts=[t.LMToolResultPart(call_id="call_1", name="get_weather", content=[text("sunny, 22C")])]),
 ]
 
+#: An assistant turn carrying *text*, which the corpus had none of. The only assistant turn it held
+#: was tool-calls-only, and that shape drops its content item entirely — so no case ever produced an
+#: assistant content block, and nothing here could see that every one was typed `input_text`. The
+#: Responses API types text by direction: an assistant item replays model output and must say
+#: `output_text`, and OpenAI answers `input_text` on one with a 400.
+ASSISTANT_TEXT = [
+    t.LMMessage(role="system", parts=[text("be helpful")]),
+    t.LMMessage(role="user", parts=[text("what is 2+2?")]),
+    t.LMMessage(role="assistant", parts=[text("4")]),
+    t.LMMessage(role="user", parts=[text("and 3+3?")]),
+]
+
 CASES = [
+    case("assistant_turn_carries_text", "openai/gpt-5", ASSISTANT_TEXT),
     case("minimal", "openai/gpt-5",
          [t.LMMessage(role="system", parts=[text("be helpful")]), t.LMMessage(role="user", parts=[text("hi")])]),
     case("temperature_and_top_p", "openai/gpt-4o",

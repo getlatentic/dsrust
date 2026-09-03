@@ -1,0 +1,10 @@
+# Git for Windows defaults to `core.autocrlf=true`, which rewrites every checked-out text file to
+# CRLF. This repo compares two goldens as whole text — `tests/goldens/react_v2_turn_system.txt` and
+# its user half, read with `include_str!` and `assert_eq!`d against a rendered prompt — so a Windows
+# checkout would fail them for a reason that has nothing to do with the port. For a project whose
+# claim is byte fidelity, the line ending is not incidental formatting; it is the thing under test.
+#
+# The JSON goldens survive either way, since `serde_json` treats CRLF as whitespace. The `.txt`
+# pair does not, and nothing in the tree is binary — every tracked file is text, and there are no
+# `.bat`/`.cmd`/`.ps1` scripts that would want CRLF — so one normalising rule covers the repo.
+* text=auto eol=lf

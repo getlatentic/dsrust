@@ -1,0 +1,46 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
+  "instructions": "Describe the picture.",
+  "inputs": [
+    {
+      "name": "photo",
+      "kind": "json:Image",
+      "desc": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "caption",
+      "kind": "str",
+      "desc": null
+    }
+  ],
+  "module": "predict",
+  "demos": [],
+  "values": {
+    "photo": "<<CUSTOM-TYPE-START-IDENTIFIER>>[{\"type\": \"image_url\", \"image_url\": {\"url\": \"https://example.com/a.jpg\"}}]<<CUSTOM-TYPE-END-IDENTIFIER>>"
+  },
+  "expected_system": "Your input fields are:\n1. `photo` (Image):\nYour output fields are:\n1. `caption` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## photo ## ]]\n{photo}\n\n[[ ## caption ## ]]\n{caption}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Describe the picture.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "[[ ## photo ## ]]\n"
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "https://example.com/a.jpg"
+          }
+        },
+        {
+          "type": "text",
+          "text": "\n\nRespond with the corresponding output fields, starting with the field `[[ ## caption ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        }
+      ]
+    }
+  ]
+}

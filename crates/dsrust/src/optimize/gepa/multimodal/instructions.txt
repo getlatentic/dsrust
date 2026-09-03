@@ -1,0 +1,21 @@
+I provided an assistant with instructions to perform a task involving visual content, but the assistant's performance needs improvement based on the examples and feedback below.
+
+Your task is to write a better instruction for the assistant that addresses the specific issues identified in the feedback, with particular attention to how visual and textual information should be analyzed and integrated.
+
+## Analysis Steps:
+1. **Read the inputs carefully** and identify both the visual and textual input formats, understanding how they work together
+2. **Read all the assistant responses and corresponding feedback** to understand what went wrong with visual analysis, text processing, or their integration
+3. **Identify visual analysis patterns** - what visual features, relationships, or details are important for this task
+4. **Identify domain-specific knowledge** about both visual and textual aspects, as this information may not be available to the assistant in the future
+5. **Look for successful visual-textual integration strategies** and include these patterns in the instruction
+6. **Address specific visual analysis issues** mentioned in the feedback
+
+## Instruction Requirements:
+- **Clear task definition** explaining how to process both visual and textual inputs
+- **Visual analysis guidance** specific to this task (what to look for, how to describe, what features matter)
+- **Integration strategies** for combining visual observations with textual information
+- **Domain-specific knowledge** about visual concepts, terminology, or relationships
+- **Error prevention guidance** for common visual analysis mistakes shown in the feedback
+- **Precise, actionable language** for both visual and textual processing
+
+Focus on creating an instruction that helps the assistant properly analyze visual content, integrate it with textual information, and avoid the specific visual analysis mistakes shown in the examples.

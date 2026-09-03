@@ -1,0 +1,37 @@
+[package]
+name = "dsrust-json-repair"
+version = "0.1.0-alpha.3"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/getlatentic/dsrust"
+authors = ["Tosin Amuda"]
+include = ["src/**/*", "README.md"]
+readme = "README.md"
+keywords = ["json", "parser", "repair", "lenient", "python"]
+categories = ["parser-implementations", "encoding"]
+description = "Read JSON that is not quite JSON: a byte-faithful port of the json-repair Python package."
+
+[lib]
+name = "json_repair"
+
+[features]
+default = []
+#: `Serialize`/`Deserialize` for `Value`, conversion to and from `serde_json::Value`, and
+#: `Repair::loads_as` for deserializing straight into a caller's own type.
+serde = ["dep:serde", "dep:serde_json"]
+
+[dependencies]
+serde = { version = "1", optional = true }
+# `preserve_order` so a converted object keeps the position Python assigned each key;
+# `float_roundtrip` so a full-precision float survives the trip.
+serde_json = { version = "1", optional = true, features = ["preserve_order", "float_roundtrip"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+# `float_roundtrip`: goldens carry floats at full precision and are compared exactly, so the
+# default best-effort parser — which loses the last bit of a 17-significant-digit float — is not an
+# option: a golden recorded from Python's repr must read back as the same f64.
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }

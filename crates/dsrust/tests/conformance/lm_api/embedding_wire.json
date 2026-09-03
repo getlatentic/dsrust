@@ -1,0 +1,88 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_embedding_wire_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": [
+    {
+      "label": "plain",
+      "model": "openai/text-embedding-3-small",
+      "inputs": [
+        "hello",
+        "world"
+      ],
+      "kwargs": {},
+      "url": "https://api.openai.com/v1/embeddings",
+      "body": {
+        "input": [
+          "hello",
+          "world"
+        ],
+        "model": "text-embedding-3-small",
+        "encoding_format": "float"
+      },
+      "bearer": "Bearer sk-recorded",
+      "vectors": [
+        [
+          0.10000000149011612,
+          0.20000000298023224,
+          0.30000001192092896
+        ],
+        [
+          0.20000000298023224,
+          0.20000000298023224,
+          0.30000001192092896
+        ]
+      ]
+    },
+    {
+      "label": "with_dimensions",
+      "model": "openai/text-embedding-3-small",
+      "inputs": [
+        "one input"
+      ],
+      "kwargs": {
+        "dimensions": 256
+      },
+      "url": "https://api.openai.com/v1/embeddings",
+      "body": {
+        "input": [
+          "one input"
+        ],
+        "model": "text-embedding-3-small",
+        "dimensions": 256,
+        "encoding_format": "float"
+      },
+      "bearer": "Bearer sk-recorded",
+      "vectors": [
+        [
+          0.10000000149011612,
+          0.20000000298023224,
+          0.30000001192092896
+        ]
+      ]
+    },
+    {
+      "label": "bare_model",
+      "model": "text-embedding-ada-002",
+      "inputs": [
+        "hello"
+      ],
+      "kwargs": {},
+      "url": "https://api.openai.com/v1/embeddings",
+      "body": {
+        "input": [
+          "hello"
+        ],
+        "model": "text-embedding-ada-002",
+        "encoding_format": "float"
+      },
+      "bearer": "Bearer sk-recorded",
+      "vectors": [
+        [
+          0.10000000149011612,
+          0.20000000298023224,
+          0.30000001192092896
+        ]
+      ]
+    }
+  ]
+}

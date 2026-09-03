@@ -1,0 +1,310 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_tool_spec_fixture.py",
+  "dspy_version": "3.3.0",
+  "tools": [
+    {
+      "name": "indented_docstring",
+      "desc": "Look one term up.\n\n    query is a phrase, not a sentence.\nAnswers with a summary.\n",
+      "args": {
+        "term": {
+          "type": "string"
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "indented_docstring",
+          "description": "Look one term up.\n\n    query is a phrase, not a sentence.\nAnswers with a summary.\n",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "term": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "term"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "undocumented",
+      "desc": null,
+      "args": {
+        "x": {
+          "type": "integer"
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "undocumented",
+          "description": null,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "every_argument_required",
+      "desc": "Look something up.",
+      "args": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "every_argument_required",
+          "description": "Look something up.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "limit": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "query",
+              "limit"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a_default_of_empty_string",
+      "desc": "Append one practice question and the answer the learner checks it against.",
+      "args": {
+        "prompt": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string"
+        },
+        "worked_solution": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "a_default_of_empty_string",
+          "description": "Append one practice question and the answer the learner checks it against.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "answer": {
+                "type": "string"
+              },
+              "worked_solution": {
+                "type": "string",
+                "default": ""
+              }
+            },
+            "required": [
+              "prompt",
+              "answer"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "defaults_of_every_scalar",
+      "desc": "Four arguments, each optional by default.",
+      "args": {
+        "a": {
+          "type": "integer",
+          "default": 1
+        },
+        "b": {
+          "type": "boolean",
+          "default": false
+        },
+        "c": {
+          "type": "number",
+          "default": 0.5
+        },
+        "d": {
+          "type": "string",
+          "default": "x"
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "defaults_of_every_scalar",
+          "description": "Four arguments, each optional by default.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "a": {
+                "type": "integer",
+                "default": 1
+              },
+              "b": {
+                "type": "boolean",
+                "default": false
+              },
+              "c": {
+                "type": "number",
+                "default": 0.5
+              },
+              "d": {
+                "type": "string",
+                "default": "x"
+              }
+            },
+            "required": []
+          }
+        }
+      }
+    },
+    {
+      "name": "optional_by_type_and_by_default",
+      "desc": "An argument may be optional by type or by default, and only one of those exempts it.\n\n`by_type` has no default, so upstream requires it however nullable its schema is.\n",
+      "args": {
+        "by_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "by_default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "optional_by_type_and_by_default",
+          "description": "An argument may be optional by type or by default, and only one of those exempts it.\n\n`by_type` has no default, so upstream requires it however nullable its schema is.\n",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "by_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "by_default": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "by_type"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "no_arguments",
+      "desc": "Read the whole draft as written so far.",
+      "args": {},
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "no_arguments",
+          "description": "Read the whole draft as written so far.",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          }
+        }
+      }
+    },
+    {
+      "name": "a_container_with_a_default",
+      "desc": "A mutable default is still a default.",
+      "args": {
+        "names": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "additionalProperties": true,
+          "type": "object",
+          "default": {}
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "a_container_with_a_default",
+          "description": "A mutable default is still a default.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "names": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "tags": {
+                "additionalProperties": true,
+                "type": "object",
+                "default": {}
+              }
+            },
+            "required": [
+              "names"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

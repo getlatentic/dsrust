@@ -1,0 +1,178 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_saved_lm_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "What BaseLM.dump_state writes for a model a caller built. Key order is dspy's and is part of what a byte comparison checks.",
+  "class_key": "_dspy_lm_class",
+  "builtin_class": "dspy.clients.lm.LM",
+  "cases": [
+    {
+      "name": "openai default",
+      "model": "openai/gpt-4o-mini",
+      "kwargs": {},
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openai/gpt-4o-mini",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": null,
+        "max_tokens": null,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "openai sampled",
+      "model": "openai/gpt-4o-mini",
+      "kwargs": {
+        "temperature": 0.7,
+        "max_tokens": 100
+      },
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openai/gpt-4o-mini",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": 0.7,
+        "max_tokens": 100,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "openai uncached",
+      "model": "openai/gpt-4o-mini",
+      "kwargs": {
+        "cache": false,
+        "num_retries": 7
+      },
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openai/gpt-4o-mini",
+        "model_type": "chat",
+        "cache": false,
+        "num_retries": 7,
+        "temperature": null,
+        "max_tokens": null,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "openai responses",
+      "model": "openai/gpt-5",
+      "kwargs": {
+        "model_type": "responses"
+      },
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openai/gpt-5",
+        "model_type": "responses",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": null,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {},
+        "max_tokens": null
+      }
+    },
+    {
+      "name": "anthropic",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "kwargs": {
+        "temperature": 1.0,
+        "max_tokens": 4096
+      },
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": 1.0,
+        "max_tokens": 4096,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "ollama",
+      "model": "ollama_chat/llama3.2",
+      "kwargs": {},
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "ollama_chat/llama3.2",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": null,
+        "max_tokens": null,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "openrouter",
+      "model": "openrouter/meta-llama/llama-3.1-8b-instruct",
+      "kwargs": {},
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openrouter/meta-llama/llama-3.1-8b-instruct",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": null,
+        "max_tokens": null,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "with credential",
+      "model": "openai/gpt-4o-mini",
+      "kwargs": {
+        "api_key": "sk-not-a-real-key"
+      },
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openai/gpt-4o-mini",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": null,
+        "max_tokens": null,
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    },
+    {
+      "name": "redirected",
+      "model": "openai/gpt-4o-mini",
+      "kwargs": {
+        "api_base": "https://elsewhere.example/v1"
+      },
+      "block": {
+        "_dspy_lm_class": "dspy.clients.lm.LM",
+        "model": "openai/gpt-4o-mini",
+        "model_type": "chat",
+        "cache": true,
+        "num_retries": 3,
+        "temperature": null,
+        "max_tokens": null,
+        "api_base": "https://elsewhere.example/v1",
+        "finetuning_model": null,
+        "launch_kwargs": {},
+        "train_kwargs": {}
+      }
+    }
+  ]
+}

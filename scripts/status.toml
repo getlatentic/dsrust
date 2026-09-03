@@ -1,0 +1,19 @@
+# What the last run observed, written by `scripts/record_rust_tests.py` and
+# `scripts/record_status.py` and rendered into README.md by `scripts/status.py`.
+#
+# Its own file, and tracked, because `backlog.toml` is not: the plan is an internal working note
+# that lives only on a developer's machine, while these numbers are published — the README prints
+# them, and CI checks that a commit did not leave them behind. A figure kept where a clone cannot
+# see it is a figure nothing can verify.
+
+[status]
+rust_tests = 1709
+upstream_tests_passing = 1215
+upstream_tests_crossing = 730
+upstream_tests_deciding_signatures = 687
+# Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
+# xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
+xfail_backlog = 8
+upstream_tests_xfailed = 10
+suites_run = 69
+release_stage = "alpha"

@@ -1,0 +1,24 @@
+[package]
+name = "pyrng"
+version = "0.1.0-alpha.3"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/getlatentic/dsrust"
+authors = ["Tosin Amuda"]
+include = ["src/**/*"]
+description = "Byte-faithful Rust reproductions of Python's Mersenne-Twister RNGs: CPython's random.Random and numpy's legacy RandomState, over one shared MT19937 core."
+
+[dependencies]
+sha2 = "0.11.0"
+
+[dev-dependencies]
+# `float_roundtrip`: the default parser is best-effort and loses the last bit of a full-precision
+# float. Here the goldens' probabilities are *inputs* to `choice`, so a rounded one would change the
+# draw rather than the comparison — see the note in dsrust-gepa/Cargo.toml for where it was caught.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+# A second, independent oracle for PCG64's core. `rand_pcg::Lcg128Xsl64` is officially `pcg64` and
+# uses the same multiplier and the same XSL-RR output; asserting agreement is what settles whether
+# the hand-written stepper is the algorithm or merely something that matches numpy on five seeds.
+# A dev-dependency: this crate ships with none, and reproducing Python is what it is for.
+rand_pcg = "0.10"
+rand_core = "0.10"

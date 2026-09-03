@@ -1,0 +1,67 @@
+{
+  "cases": {
+    "a_few_samples": {
+      "base64": "UklGRiwAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQgAAAAAAABAAMD/fw==",
+      "bytes": 52,
+      "samples": [
+        0.0,
+        0.5,
+        -0.5,
+        1.0
+      ],
+      "sampling_rate": 8000
+    },
+    "conversion_sweep": {
+      "base64": "UklGRkQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSAAAAAAgACAAKD/vwDAAOD//wAAAAAAIABAAEAAYP9//3//fw==",
+      "bytes": 76,
+      "samples": [
+        -1.0,
+        -0.99998,
+        -0.75,
+        -0.5000153,
+        -0.5,
+        -0.25,
+        -1e-05,
+        0.0,
+        1e-05,
+        0.25,
+        0.5,
+        0.5000153,
+        0.75,
+        0.999969482421875,
+        0.99998,
+        1.0
+      ],
+      "sampling_rate": 8000
+    },
+    "empty": {
+      "base64": "UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=",
+      "bytes": 44,
+      "samples": [],
+      "sampling_rate": 16000
+    },
+    "full_scale_edges": {
+      "base64": "UklGRiwAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQgAAAD/fwCA/38AgA==",
+      "bytes": 52,
+      "samples": [
+        1.0,
+        -1.0,
+        0.999969482421875,
+        -0.99998
+      ],
+      "sampling_rate": 44100
+    },
+    "one_sample_at_a_high_rate": {
+      "base64": "UklGRiYAAABXQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YQIAAAAAIA==",
+      "bytes": 46,
+      "samples": [
+        0.25
+      ],
+      "sampling_rate": 48000
+    }
+  },
+  "libsndfile": "1.2.2",
+  "note": "soundfile.write(..., format='WAV', subtype='PCM_16'), which is what dspy's Audio.from_array emits. libsndfile writes a canonical 44-byte RIFF header and no vendor chunks, which is why this is reproducible.",
+  "python_version": "3.13.5",
+  "source": "CPython 3.13.5 wave + soundfile, via scripts/generate_wav_fixture.py"
+}
