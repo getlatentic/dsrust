@@ -75,8 +75,10 @@ pub fn decode_f32(bytes: &[u8]) -> Result<Vec<Vec<f32>>> {
     Ok(data
         .chunks_exact(width * 4)
         .map(|row| {
-            row.chunks_exact(4)
-                .map(|value| f32::from_le_bytes([value[0], value[1], value[2], value[3]]))
+            row.as_chunks::<4>()
+                .0
+                .iter()
+                .map(|value| f32::from_le_bytes(*value))
                 .collect()
         })
         .collect())
