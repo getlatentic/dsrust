@@ -234,7 +234,7 @@ DENO_NO_PACKAGE_JSON=1 PYTHONPATH="$WORK:$SRC" bounded "$VENV/bin/python" -m pyt
 STATUS=$?
 set -e
 cat "$WORK/last-run.txt"
-# backlog.toml's [status] block was hand-written and stale. It is generated from the run now, so a
+# The observed counts were hand-written and stale. `scripts/status.toml` is generated from the run now, so a
 # number in the plan cannot part company with the evidence for it.
 python3 "$ROOT/scripts/record_status.py" --suites "${#SUITES[@]}" --status "$STATUS" < "$WORK/last-run.txt"
 exit "$STATUS"

@@ -3,7 +3,7 @@
 # and the ports held to the libraries they reproduce.
 #
 # `scripts/run_upstream_tests.sh` is the fifth, and it records what it observed into
-# `backlog.toml`'s `[status]`. This one exists so `rust_tests` is recorded the same way. It was the
+# `scripts/status.toml`. This one exists so `rust_tests` is recorded the same way. It was the
 # only number in that block no run wrote, which is why it was the only one that drifted — 48 behind
 # by the time anyone counted. Proving a change is now what updates it.
 set -euo pipefail

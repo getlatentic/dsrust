@@ -96,7 +96,9 @@ jobs:
         # different things — `gates-were-a-checklist` is the story about what happens when they do.
         run: ./scripts/run_rust_gates.sh
       - name: the gates' recorded numbers are the numbers
-        # `run_rust_gates.sh` writes the observed test counts into `backlog.toml` and `README.md`.
-        # A diff here means someone committed without running them, which is exactly the drift the
-        # recorder was added to stop — 48 behind by the time anyone last counted.
-        run: git diff --exit-code -- backlog.toml README.md
+        # `run_rust_gates.sh` writes the observed test counts into `scripts/status.toml`, and
+        # renders README.md's line from them. A diff here means someone committed without running
+        # them, which is exactly the drift the recorder was added to stop — 48 behind by the time
+        # anyone last counted. The plan and the handoff are untracked, so a clone has neither and
+        # neither is diffed.
+        run: git diff --exit-code -- scripts/status.toml README.md
