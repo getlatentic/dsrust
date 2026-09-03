@@ -1,15 +1,15 @@
 [package]
 name = "dsrust-graph"
-version = "0.1.0-alpha.3"
+# Its own first alpha rather than the set's third: the six crates around it carry a number that
+# records their publishing history, and this one has none.
+version = "0.1.0-alpha.1"
 edition = "2024"
-# Not published yet. It is a worked reference for a program whose shape comes from a document
-# rather than from a Rust struct, and its README tells a reader to copy `src/graph.rs` — two
-# methods. It moved into this workspace so a change to dsrust's API breaks it on the commit that
-# causes it rather than whenever someone next builds the other repository, which is how a
-# `Reasoning`-typed field went a day looking like a GEPA regression.
-publish = false
 license = "MIT OR Apache-2.0"
 description = "Building a dsrust program from a graph a user wired at run time."
+readme = "README.md"
+keywords = ["dspy", "llm", "graph", "prompt", "ai"]
+categories = ["science", "api-bindings"]
+repository = "https://github.com/getlatentic/dsrust"
 
 [dependencies]
 dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
