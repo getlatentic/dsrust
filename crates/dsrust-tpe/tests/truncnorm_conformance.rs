@@ -36,13 +36,18 @@ fn number(value: &Value) -> f64 {
 /// Exact, including both non-finite spellings — two NaNs are never `==`, and the golden records
 /// where optuna answers with one.
 /// Exact on both non-finite spellings — two NaNs are never `==`, and the golden records where
-/// optuna answers with one — and within a few units in the last place on a finite answer.
+/// optuna answers with one — and exact on a finite answer too, on the platform the golden was
+/// recorded on.
 ///
-/// The golden was recorded on macOS, and every function here ends in the platform's `exp` or
-/// `log`: Apple's, glibc's and Windows' universal CRT round the last bit differently, so the same
-/// arithmetic lands one ulp apart across the three, in optuna itself as much as here. Four ulps is
-/// far under what changes a Newton step or a density ratio, and an approximation that was merely
-/// close would fail it by thousands.
+/// Every function here ends in the platform's `erf`, `exp` or `log`, and that is optuna's own
+/// arrangement: CPython's `math.erf` is the system's, so optuna's answers move with the libm under
+/// it. The golden was recorded on macOS/arm64, where Apple's `erf` answers; glibc's and Windows'
+/// CRT differ from it by up to a hundred-odd units in the last place at the grid's tail points
+/// (128 at `ndtr(-2.856)`, measured on the Linux runner), and optuna on those platforms would
+/// differ from this golden by the same amount. So elsewhere the comparison allows that drift —
+/// far under what changes a Newton step or a density ratio, and the sampler's own golden, which
+/// compares the trials optuna proposes, is exact on all three — while on the recording platform
+/// it allows nothing.
 #[track_caller]
 fn same(ours: f64, expected: f64, what: &str) {
     if expected.is_nan() {
@@ -53,9 +58,16 @@ fn same(ours: f64, expected: f64, what: &str) {
         assert_eq!(ours, expected, "{what}");
         return;
     }
+    let allowed = match RECORDING_PLATFORM {
+        true => 0,
+        false => 256,
+    };
     let apart = ulps_apart(ours, expected);
-    assert!(apart <= 4, "{what}: {ours} is {apart} ulps from {expected}");
+    assert!(apart <= allowed, "{what}: {ours} is {apart} ulps from {expected}");
 }
+
+/// Where `tests/conformance/truncnorm.json` was recorded, and the platform libm it carries.
+const RECORDING_PLATFORM: bool = cfg!(all(target_os = "macos", target_arch = "aarch64"));
 
 /// How many representable doubles lie between two finite values of the same sign.
 fn ulps_apart(a: f64, b: f64) -> u64 {
