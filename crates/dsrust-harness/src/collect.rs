@@ -141,6 +141,23 @@ mod tests {
     }
 
     #[test]
+    fn the_agents_session_id_is_the_response_id() {
+        // A host that wants to resume the conversation needs the id the CLI
+        // gave the session, and this is the only field it can travel in.
+        let reply = run(vec![
+            RunEvent::Session {
+                run_id: "r".into(),
+                session_id: Some("ses-9".into()),
+                model: None,
+            },
+            text("x"),
+            exited(0),
+        ])
+        .unwrap();
+        assert_eq!(reply.response_id.as_deref(), Some("ses-9"));
+    }
+
+    #[test]
     fn usage_and_cost_are_carried_under_both_spellings() {
         let reply = run(vec![
             text("x"),
@@ -150,7 +167,7 @@ mod tests {
                 output_tokens: Some(3),
                 total_tokens: Some(13),
                 cache_read_tokens: Some(4),
-                cache_write_tokens: None,
+                cache_write_tokens: Some(2),
                 cost_usd: Some(0.25),
             },
             exited(0),
@@ -165,7 +182,11 @@ mod tests {
             (usage.output_tokens, usage.completion_tokens),
             (Some(3), Some(3))
         );
-        assert_eq!(usage.cache_read_tokens, Some(4));
+        assert_eq!(usage.total_tokens, Some(13));
+        assert_eq!(
+            (usage.cache_read_tokens, usage.cache_write_tokens),
+            (Some(4), Some(2))
+        );
         assert_eq!(reply.cost, Some(0.25));
     }
 

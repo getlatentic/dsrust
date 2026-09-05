@@ -156,6 +156,11 @@ mod tests {
         );
         assert!(!tool.read_only());
         assert_eq!(
+            tool.input_schema()["required"],
+            json!(["query"]),
+            "the schema the agent sees"
+        );
+        assert_eq!(
             tool.call(json!({ "query": "cats" })),
             Ok("found cats".to_owned())
         );

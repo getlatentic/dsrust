@@ -178,6 +178,81 @@ async fn a_failed_run_is_an_error_the_caller_can_read() {
     assert!(err.to_string().contains("not signed in"), "{err}");
 }
 
+/// A run that never ends on its own: it holds the event channel open until it is
+/// cancelled, then exits. The shape of an agent still working when the caller
+/// gives up — and the only shape under which "dropping the call cancels it" can
+/// be observed rather than raced.
+struct Hanging {
+    cancelled: Arc<Mutex<bool>>,
+}
+
+impl Harness for Hanging {
+    fn info(&self) -> Info {
+        Info {
+            id: "hanging".into(),
+            display_name: "Hanging".into(),
+            description: String::new(),
+            install_hint: None,
+        }
+    }
+    fn readiness(&self) -> Readiness {
+        unreachable!("not exercised")
+    }
+    fn start(&self, _request: RunRequest, on_event: RunCallback) -> Result<RunHandle, Error> {
+        let cancelled = Arc::clone(&self.cancelled);
+        std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !*cancelled.lock().unwrap() && std::time::Instant::now() < deadline {
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            on_event(RunEvent::Exited {
+                run_id: "r".into(),
+                exit_code: None,
+                cancelled: true,
+            });
+        });
+        Ok(Box::new(Control(Arc::clone(&self.cancelled))))
+    }
+    fn credential(&self) -> CredentialSpec {
+        unreachable!("not exercised")
+    }
+}
+
+#[tokio::test]
+async fn dropping_the_call_cancels_the_agent_whether_or_not_it_was_polled() {
+    // A caller that gives up on the answer must not leave an agent spending
+    // tokens. The run starts when `forward` is called, so the guard has to be
+    // in place before the first poll — a future dropped un-polled is the case
+    // that once slipped past it.
+    let cancelled: Arc<Mutex<bool>> = Arc::default();
+    let model = HarnessModel::new(Hanging {
+        cancelled: Arc::clone(&cancelled),
+    });
+    let request = ask(vec![LmMessage::user(["q"])]);
+
+    let never_polled = model.forward(&request);
+    drop(never_polled);
+    assert!(
+        *cancelled.lock().unwrap(),
+        "dropped before its first poll, the run was still cancelled"
+    );
+
+    *cancelled.lock().unwrap() = false;
+    let polled_once = tokio::time::timeout(
+        std::time::Duration::from_millis(20),
+        model.forward(&request),
+    )
+    .await;
+    assert!(
+        polled_once.is_err(),
+        "a run that has not ended cannot have answered"
+    );
+    assert!(
+        *cancelled.lock().unwrap(),
+        "dropped after polling, cancelled too"
+    );
+}
+
 #[tokio::test]
 async fn each_call_gets_its_own_run_id() {
     let (harness, seen) = answering("x");

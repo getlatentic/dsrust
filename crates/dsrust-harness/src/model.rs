@@ -134,17 +134,19 @@ impl<H: Harness + 'static> ChatModel for HarnessModel<H> {
         let rendered = prompt::render(request);
         let run = self.run_request(request, rendered);
         let model = run.tuning.model.clone();
+        // The run starts here, not on first poll, so the guard is built here too:
+        // a future dropped before it is ever polled has still started an agent,
+        // and that agent must stop.
         let started = self
             .harness
             .run(run)
+            .map(|(handle, events)| (CancelOnDrop(handle), events))
             .context("the agent could not be started");
         async move {
-            let (handle, events) = started?;
+            let (_cancel, events) = started?;
             // The run is on threads of its own and answers over a channel. Draining
             // it on one more thread, and awaiting a one-shot, keeps this future
-            // free of any particular runtime; the guard cancels the agent if the
-            // future is dropped before it answers.
-            let _cancel = CancelOnDrop(handle);
+            // free of any particular runtime.
             let (done, answered) = futures_channel::oneshot::channel();
             std::thread::spawn(move || {
                 let _ = done.send(collect::drain(events, model));
