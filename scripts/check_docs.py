@@ -35,6 +35,8 @@ edition = "2024"
 
 [dependencies]
 dsrust = {{ path = "{root}/crates/dsrust" }}
+# docs/usage.md's "A coding agent as the provider"; a path until agent-harness 0.7 lets it publish.
+dsrust-harness = {{ path = "{root}/crates/dsrust-harness" }}
 tokio = {{ version = "1", features = ["macros", "rt-multi-thread"] }}
 anyhow = "1"
 # Every crate here is one a guide tells the reader to install, in the same place they would look for

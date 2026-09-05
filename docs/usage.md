@@ -441,6 +441,82 @@ not a subclass. A provider that shares the OpenAI wire but changes a header or t
 wraps the OpenAI request and reply pieces in its own `ChatModel`. It holds what it reuses rather
 than inheriting it.
 
+### A coding agent as the provider
+
+A `ChatModel` need not be an HTTP API. `dsrust-harness` puts a coding agent the user already has
+signed in — Claude Code, Codex, an ACP agent, or agent-harness's own OpenAI-compatible runtime —
+behind the same trait, so a program runs on the agent's billing with no API key in it. It lives in
+this workspace at [`crates/dsrust-harness`](../crates/dsrust-harness) until agent-harness 0.7 is on
+crates.io; then it is `cargo add dsrust-harness`.
+
+The model is built the way an `LM` is — the harness positional, the settings named, `build` where a
+harness that cannot do what is asked is refused once:
+
+```rust
+use std::sync::Arc;
+
+use dsrust::{JsonAdapter, Predict, call};
+use dsrust_harness::HarnessModel;
+use dsrust_harness::harness::Claude;
+
+let claude = Arc::new(
+    HarnessModel::builder(Claude::new())
+        .cwd(std::env::temp_dir())   // the agent's reach is its cwd; name it
+        .max_thinking_tokens(0)      // a classifier needs no extended thinking
+        .build()?,
+);
+let triage = Predict!("ticket -> category, urgency")
+    .adapter(JsonAdapter::default())
+    .set_lm(claude);
+let out = call!(triage, ticket = "My order A-1042 is a week late.").await?;
+```
+
+By default the agent runs as a *model*: its own tools are withheld, and the request's system
+messages replace the agent's prompt rather than joining it — measured on Claude Code, ~7,000 prompt
+tokens become a few hundred. `JsonAdapter`'s schema travels as the run's output schema, so the
+reply is data, not prose a parser rescued. A harness that cannot withhold its tools (Codex, ACP)
+says so through its features, and `build` refuses it under that default rather than every call
+failing.
+
+The same roster a `ReActV2!` holds can be handed to the agent instead, as an MCP server that lives
+in your process — `tool_server` takes the `Vec<Box<dyn Tool>>` that `#[tool]` emits:
+
+```rust
+struct Desk;
+
+#[tool]
+impl Desk {
+    /// Where an order is right now. Takes the order id, like A-1042.
+    #[tool]
+    fn order_status(&self, order: String) -> anyhow::Result<String> {
+        Ok(format!("{order}: shipped 2026-09-03, due 2026-09-08"))
+    }
+}
+```
+
+```rust
+use dsrust::{Predict, ReActV2, call};
+use dsrust_harness::{HarnessModel, tool_server};
+use dsrust_harness::harness::{Claude, ToolAccess};
+
+// dsrust's loop: ReActV2 chooses the tool and runs it here; the agent is the text model beneath.
+let agent = ReActV2!("question -> answer", Arc::new(Desk).tools())
+    .set_lm(Arc::new(HarnessModel::new(Claude::new())?));
+
+// The agent's loop: Claude Code calls back into Desk over MCP, and a Predict reads the answer.
+let desk = Claude::new().with_tool_server(tool_server("desk", Arc::new(Desk).tools()));
+let qa = Predict!("question -> answer").set_lm(Arc::new(
+    HarnessModel::builder(desk).tools(ToolAccess::Default).build()?,
+));
+let out = call!(qa, question = "Where is order A-1042?").await?;
+```
+
+Which loop to run is the whole choice. Under `ReActV2` the tool calls come back to dsrust as
+calls, which is what an optimizer and a trajectory need; the agent must therefore hold no tools,
+and the default guarantees it. Under `ToolAccess::Default` the agent runs whatever loop it likes
+and one reply comes back — a `Predict` an optimizer can still rewrite, with the loop inside it
+opaque.
+
 ### Asking a model directly, with no signature
 
 DSPy's `lm(...)` — its `BaseLM.__call__` — is `ChatModel::call`. Every model has it, including one of
