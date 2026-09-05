@@ -37,6 +37,10 @@ pub const MARKER_DISCIPLINE: &str = "Reply in plain text only: no Markdown fence
 ///
 /// Capabilities are dsrust's defaults, all off: tools are rendered into the
 /// prompt and read back from text, which is the path an agent CLI can serve.
+/// A schema still travels — `JsonAdapter`'s `response_format` becomes the run's
+/// `output_schema` — and an adapter that advertises `structured_output` answers
+/// with data, which this model hands back as the reply's text in place of the
+/// agent's narration.
 pub struct HarnessModel<H> {
     harness: H,
     tools: ToolAccess,

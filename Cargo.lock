@@ -59,7 +59,7 @@ dependencies = [
 [[package]]
 name = "agent-harness"
 version = "0.6.0-alpha.1"
-source = "git+https://github.com/getlatentic/agent-harness?rev=3e5ad06#3e5ad064102d64d49df7a4e8f367238be3cd0c86"
+source = "git+https://github.com/getlatentic/agent-harness?rev=b16b21b#b16b21b72cf392d13d127e2978f3e03706d67c35"
 dependencies = [
  "agent-client-protocol",
  "async-trait",
@@ -422,7 +422,7 @@ checksum = "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688"
 [[package]]
 name = "cli-stream"
 version = "0.4.3"
-source = "git+https://github.com/getlatentic/agent-harness?rev=3e5ad06#3e5ad064102d64d49df7a4e8f367238be3cd0c86"
+source = "git+https://github.com/getlatentic/agent-harness?rev=b16b21b#b16b21b72cf392d13d127e2978f3e03706d67c35"
 dependencies = [
  "libc",
  "serde",

@@ -18,6 +18,7 @@ use harness::RunEvent;
 /// provider that cut a stream short.
 pub(crate) fn drain(events: Receiver<RunEvent>, model: Option<String>) -> Result<LmResponse> {
     let mut text = String::new();
+    let mut structured: Option<serde_json::Value> = None;
     let mut thinking = String::new();
     let mut usage = None;
     let mut cost = None;
@@ -49,6 +50,7 @@ pub(crate) fn drain(events: Receiver<RunEvent>, model: Option<String>) -> Result
                 });
                 cost = cost_usd;
             }
+            RunEvent::StructuredOutput { value, .. } => structured = Some(value),
             RunEvent::Session { session_id, .. } => session = session_id,
             RunEvent::Error { message, .. } => error = Some(message),
             RunEvent::Exited {
@@ -69,7 +71,13 @@ pub(crate) fn drain(events: Receiver<RunEvent>, model: Option<String>) -> Result
     if !thinking.is_empty() {
         parts.push(LmPart::thinking(thinking, false));
     }
-    parts.push(LmPart::text(text));
+    // An agent asked for a shape may still narrate before it fills it. The
+    // shape is the answer; the narration is for a reader of the transcript, not
+    // for the parser.
+    parts.push(LmPart::text(match structured {
+        Some(value) => value.to_string(),
+        None => text,
+    }));
     Ok(LmResponse {
         model,
         outputs: vec![LmOutput {
@@ -138,6 +146,20 @@ mod tests {
         assert_eq!(parts[1].as_text(), Some("hello"));
         assert_eq!(reply.outputs[0].finish_reason.as_deref(), Some("stop"));
         assert_eq!(reply.model.as_deref(), Some("m"));
+    }
+
+    #[test]
+    fn a_structured_answer_replaces_the_prose_as_the_text_a_parser_reads() {
+        let reply = run(vec![
+            text("Let me put that in the shape you asked for."),
+            RunEvent::StructuredOutput {
+                run_id: "r".into(),
+                value: serde_json::json!({ "code": "q" }),
+            },
+            exited(0),
+        ])
+        .unwrap();
+        assert_eq!(reply.outputs[0].parts[0].as_text(), Some(r#"{"code":"q"}"#));
     }
 
     #[test]

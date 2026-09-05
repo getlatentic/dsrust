@@ -21,11 +21,11 @@ openai-compatible = ["agent-harness/openai-compatible"]
 
 [dependencies]
 dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
-# Pinned to the head of getlatentic/agent-harness#70 (which carries #69): host
-# tools and `extra_instructions` on Claude and Codex are on that branch and not
+# Pinned to the head of getlatentic/agent-harness#71 (which carries #69 and #70): host
+# tools, `extra_instructions` and structured output on Claude and Codex are on that branch and not
 # yet in a published release. A rev rather than a branch so a build is the same
 # build tomorrow; becomes `version = "0.7…"` when that ships.
-agent-harness = { git = "https://github.com/getlatentic/agent-harness", rev = "3e5ad06", default-features = false }
+agent-harness = { git = "https://github.com/getlatentic/agent-harness", rev = "b16b21b", default-features = false }
 # Runtime-agnostic hand-off from the thread that drains a run to the future
 # that awaits it. Already a dsrust dependency, so this adds nothing.
 futures-channel = { version = "0.3", default-features = false, features = ["alloc", "std"] }

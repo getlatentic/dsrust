@@ -85,3 +85,40 @@ async fn the_json_adapter_over_ollama_gets_a_schema_constrained_reply() {
         "{category:?} / {urgency:?}"
     );
 }
+
+/// The distinction the `Predict` tests above cannot draw: a schema *enforced*
+/// hands back exactly the JSON, while a schema *ignored* hands back prose that a
+/// forgiving parser happens to rescue. This reads the reply's text directly.
+#[tokio::test]
+#[ignore = "live: needs the claude CLI installed and signed in; costs tokens"]
+async fn claude_codes_reply_text_is_exactly_the_json_when_a_schema_is_asked_for() {
+    use dsrust::lm::ChatModel;
+    use dsrust::lm::api::{LmMessage, LmRequest};
+    use dsrust_harness::harness::Claude;
+
+    let model = HarnessModel::new(Claude::new())
+        .with_cwd(workspace())
+        .with_max_turns(2);
+    let mut request = LmRequest::from_messages(
+        "sonnet",
+        vec![LmMessage::user([format!("Triage this ticket: {TICKET}")])],
+    );
+    request.config.response_format = Some(json!({
+        "type": "object",
+        "properties": { "category": { "type": "string" }, "urgency": { "type": "string" } },
+        "required": ["category", "urgency"]
+    }));
+    let reply = model.forward(&request).await.expect("the call completes");
+    let text = reply.outputs[0]
+        .parts
+        .iter()
+        .find_map(|p| p.as_text())
+        .expect("a text part");
+    let value: Value = serde_json::from_str(text).unwrap_or_else(|e| {
+        panic!("the reply is exactly the JSON, not prose around it ({e}): {text:?}")
+    });
+    assert!(
+        value["category"].is_string() && value["urgency"].is_string(),
+        "{value}"
+    );
+}
