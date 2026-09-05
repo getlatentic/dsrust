@@ -9,6 +9,16 @@ publish = false
 license = "MIT OR Apache-2.0"
 description = "Coding agents as dsrust models: Claude Code, Codex and any agent-harness adapter behind dsrust's ChatModel, and dsrust tools offered to those agents in-process."
 
+[features]
+# The adapters, forwarded from agent-harness so a consumer picks them here — it
+# reaches agent-harness as `dsrust_harness::harness` and depends on it nowhere
+# else. Defaults mirror agent-harness's own.
+default = ["claude", "codex"]
+claude = ["agent-harness/claude"]
+codex = ["agent-harness/codex"]
+acp = ["agent-harness/acp"]
+openai-compatible = ["agent-harness/openai-compatible"]
+
 [dependencies]
 dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
 # Pinned to the head of getlatentic/agent-harness#70 (which carries #69): host
@@ -30,5 +40,4 @@ pollster = "0.4"
 base64 = "0.22"
 
 [dev-dependencies]
-agent-harness = { git = "https://github.com/getlatentic/agent-harness", rev = "3e5ad06", features = ["claude"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

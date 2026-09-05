@@ -8,7 +8,7 @@
 //!
 //! ```no_run
 //! use std::sync::Arc;
-//! use harness::Claude;
+//! use dsrust_harness::harness::Claude;
 //! use dsrust::lm::DynChatModel;
 //! use dsrust::{Example, Module, Predict};
 //! use dsrust_harness::HarnessModel;
@@ -36,6 +36,12 @@ mod collect;
 mod model;
 mod prompt;
 pub mod tools;
+
+/// agent-harness, as this crate builds against it — reach `Claude`, `Codex`,
+/// `OpenHarness`, `ToolServer` through here rather than depending on it too. A
+/// second copy under a different version would be a different `Harness` trait,
+/// and a `Claude` from it would not be one this crate's model accepts.
+pub use harness;
 
 pub use model::{HarnessModel, MARKER_DISCIPLINE};
 pub use tools::{read_only_tool_server, tool_server};
