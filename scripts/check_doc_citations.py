@@ -75,8 +75,9 @@ ABSENT_ON_PURPOSE = {
     # macro is applied to, and `GiftTask` is what the example calls it.
     "GiftTask::predict",
 }
-#: Types from other crates named without their crate — `tracing::Span`, `tokio::runtime::Handle`.
-FOREIGN_TYPES = {"Span", "Handle"}
+#: Types from other crates named without their crate — `tracing::Span`, `tokio::runtime::Handle`,
+#: and agent-harness's, which `dsrust-harness` is written in terms of.
+FOREIGN_TYPES = {"Span", "Handle", "ToolAccess", "Features", "RunEvent", "RunTuning", "Harness", "ToolServer", "HostTool"}
 #: Rust's own scalar types, whose inherent methods are std's.
 PRIMITIVES = {"char", "str", "bool", "u8", "u32", "u64", "usize", "i32", "i64", "f32", "f64"}
 PY_NAME = re.compile(

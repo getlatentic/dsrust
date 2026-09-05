@@ -9,6 +9,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "agent-harness"
+version = "0.6.0-alpha.1"
+source = "git+https://github.com/getlatentic/agent-harness?rev=3e5ad06#3e5ad064102d64d49df7a4e8f367238be3cd0c86"
+dependencies = [
+ "cli-stream",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -148,6 +159,17 @@ name = "claxon"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688"
+
+[[package]]
+name = "cli-stream"
+version = "0.4.3"
+source = "git+https://github.com/getlatentic/agent-harness?rev=3e5ad06#3e5ad064102d64d49df7a4e8f367238be3cd0c86"
+dependencies = [
+ "libc",
+ "serde",
+ "thiserror",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "const-oid"
@@ -327,6 +349,20 @@ version = "0.1.0-alpha.3"
 dependencies = [
  "dsrust",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "dsrust-harness"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "agent-harness",
+ "anyhow",
+ "base64",
+ "dsrust",
+ "futures-channel",
+ "pollster",
+ "serde_json",
  "tokio",
 ]
 

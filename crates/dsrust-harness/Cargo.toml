@@ -1,0 +1,34 @@
+[package]
+name = "dsrust-harness"
+version = "0.1.0-alpha.1"
+edition = "2024"
+rust-version = "1.88"
+# Not published until agent-harness 0.7 is, so the git pin below can become a
+# version a registry user can resolve.
+publish = false
+license = "MIT OR Apache-2.0"
+description = "Coding agents as dsrust models: Claude Code, Codex and any agent-harness adapter behind dsrust's ChatModel, and dsrust tools offered to those agents in-process."
+
+[dependencies]
+dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
+# Pinned to the head of getlatentic/agent-harness#70 (which carries #69): host
+# tools and `extra_instructions` on Claude and Codex are on that branch and not
+# yet in a published release. A rev rather than a branch so a build is the same
+# build tomorrow; becomes `version = "0.7…"` when that ships.
+agent-harness = { git = "https://github.com/getlatentic/agent-harness", rev = "3e5ad06", default-features = false }
+# Runtime-agnostic hand-off from the thread that drains a run to the future
+# that awaits it. Already a dsrust dependency, so this adds nothing.
+futures-channel = { version = "0.3", default-features = false, features = ["alloc", "std"] }
+serde_json = "1"
+anyhow = "1"
+# A dsrust tool may be async; the agent calls it from a plain thread. A tokio
+# handle captured where the server was built drives such a future, and pollster
+# drives one that has no reactor to wait on — every sync tool's default.
+tokio = { version = "1", default-features = false, features = ["rt"] }
+pollster = "0.4"
+# An image part arrives base64-encoded; an adapter wants its bytes.
+base64 = "0.22"
+
+[dev-dependencies]
+agent-harness = { git = "https://github.com/getlatentic/agent-harness", rev = "3e5ad06", features = ["claude"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
