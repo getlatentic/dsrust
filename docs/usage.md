@@ -446,7 +446,7 @@ than inheriting it.
 A `ChatModel` need not be an HTTP API. `dsrust-harness` puts a coding agent the user already has
 signed in — Claude Code, Codex, an ACP agent, or agent-harness's own OpenAI-compatible runtime —
 behind the same trait, so a program runs on the agent's billing with no API key in it. It lives in
-this workspace at [`crates/dsrust-harness`](../crates/dsrust-harness) until agent-harness 0.7 is on
+this workspace at [`crates/dsrust-harness`](../crates/dsrust-harness) until agent-harness 0.6.0-alpha.2 is on
 crates.io; then it is `cargo add dsrust-harness`.
 
 The model is built the way an `LM` is — the harness positional, the settings named, `build` where a

@@ -3,7 +3,7 @@ name = "dsrust-harness"
 version = "0.1.0-alpha.1"
 edition = "2024"
 rust-version = "1.88"
-# Not published until agent-harness 0.7 is, so the git pin below can become a
+# Not published until agent-harness ships host tools (0.6.0-alpha.2), so the git pin below can become a
 # version a registry user can resolve.
 publish = false
 license = "MIT OR Apache-2.0"
@@ -25,7 +25,7 @@ dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
 # tools, `extra_instructions`, structured output and the model-mode knobs (`system_prompt`,
 # `max_thinking_tokens`) on Claude and Codex are on that branch and not
 # yet in a published release. A rev rather than a branch so a build is the same
-# build tomorrow; becomes `version = "0.7…"` when that ships.
+# build tomorrow; becomes `version = "0.6.0-alpha.2"` when that ships.
 agent-harness = { git = "https://github.com/getlatentic/agent-harness", rev = "9e5eb25", default-features = false }
 # Runtime-agnostic hand-off from the thread that drains a run to the future
 # that awaits it. Already a dsrust dependency, so this adds nothing.
