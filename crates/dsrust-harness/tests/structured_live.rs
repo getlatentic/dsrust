@@ -121,4 +121,13 @@ async fn claude_codes_reply_text_is_exactly_the_json_when_a_schema_is_asked_for(
         value["category"].is_string() && value["urgency"].is_string(),
         "{value}"
     );
+    // As a model, the agent's ~7,000-token envelope must not be in the prompt.
+    let usage = reply.usage.expect("usage reported");
+    let prompt_tokens = usage.input_tokens.unwrap_or(0)
+        + usage.cache_read_tokens.unwrap_or(0)
+        + usage.cache_write_tokens.unwrap_or(0);
+    assert!(
+        prompt_tokens > 0 && prompt_tokens < 1500,
+        "the agent envelope is back: {prompt_tokens} prompt tokens"
+    );
 }

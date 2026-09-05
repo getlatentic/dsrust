@@ -102,7 +102,13 @@ async fn every_call_withholds_the_agents_tools_and_carries_the_marker_discipline
         "the agent's own tools never run behind dsrust's back"
     );
     assert_eq!(run.prompt, "2+2?");
-    let instructions = run.tuning.extra_instructions.as_deref().unwrap();
+    // As a model (no tools) the instructions ARE the system prompt: the agent's
+    // own ~7,000-token envelope is not sent at all.
+    assert_eq!(
+        run.tuning.extra_instructions, None,
+        "nothing appended to an agent prompt that is not sent"
+    );
+    let instructions = run.tuning.system_prompt.as_deref().unwrap();
     assert!(
         instructions.starts_with(MARKER_DISCIPLINE),
         "standing instructions first: {instructions}"
@@ -147,11 +153,43 @@ async fn instructions_can_be_replaced_or_removed() {
         .forward(&ask(vec![LmMessage::user(["q"])]))
         .await
         .unwrap();
+    let run = &seen.lock().unwrap()[0];
     assert_eq!(
-        seen.lock().unwrap()[0].tuning.extra_instructions,
-        None,
+        (
+            run.tuning.system_prompt.as_deref(),
+            run.tuning.extra_instructions.as_deref()
+        ),
+        (None, None),
         "nothing standing, nothing in the request"
     );
+}
+
+#[tokio::test]
+async fn as_an_agent_the_instructions_are_added_beside_the_agents_own_prompt() {
+    // With tools, the agent needs its own prompt to drive them; ours rides as
+    // an addition, and a thinking cap travels as given.
+    let (harness, seen) = answering("x");
+    let model = HarnessModel::new(harness)
+        .with_agent_tools()
+        .with_max_thinking_tokens(0);
+    model
+        .forward(&ask(vec![
+            LmMessage::system(["be brief"]),
+            LmMessage::user(["q"]),
+        ]))
+        .await
+        .unwrap();
+    let run = &seen.lock().unwrap()[0];
+    assert_eq!(run.tuning.system_prompt, None, "the agent keeps its prompt");
+    assert!(
+        run.tuning
+            .extra_instructions
+            .as_deref()
+            .is_some_and(|i| i.ends_with("be brief")),
+        "{:?}",
+        run.tuning.extra_instructions
+    );
+    assert_eq!(run.tuning.max_thinking_tokens, Some(0));
 }
 
 #[tokio::test]

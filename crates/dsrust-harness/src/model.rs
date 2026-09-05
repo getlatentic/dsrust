@@ -47,6 +47,7 @@ pub struct HarnessModel<H> {
     model: Option<String>,
     cwd: Option<PathBuf>,
     max_turns: Option<u32>,
+    max_thinking_tokens: Option<u32>,
     instructions: Option<String>,
     calls: AtomicU64,
 }
@@ -60,6 +61,7 @@ impl<H: Harness> HarnessModel<H> {
             model: None,
             cwd: None,
             max_turns: None,
+            max_thinking_tokens: None,
             instructions: Some(MARKER_DISCIPLINE.to_owned()),
             calls: AtomicU64::new(0),
         }
@@ -99,6 +101,15 @@ impl<H: Harness> HarnessModel<H> {
         self
     }
 
+    /// Cap the agent's extended thinking, in tokens; `0` turns it off. Measured
+    /// on Claude Code: thinking off took a judge-shaped call from 10.0s to 7.9s
+    /// and its output from 240 tokens to 72. A judge or a classifier rarely
+    /// needs it; a reflection model usually does — leave it unset there.
+    pub fn with_max_thinking_tokens(mut self, tokens: u32) -> Self {
+        self.max_thinking_tokens = Some(tokens);
+        self
+    }
+
     /// Replace the standing instructions. `None` sends only what the request's
     /// own system messages say.
     pub fn with_instructions(mut self, instructions: Option<String>) -> Self {
@@ -108,6 +119,19 @@ impl<H: Harness> HarnessModel<H> {
 
     fn run_request(&self, request: &LmRequest, rendered: prompt::Rendered) -> RunRequest {
         let n = self.calls.fetch_add(1, Ordering::Relaxed);
+        // The instructions — the standing ones and the request's own system
+        // messages — are the whole system prompt when the agent is being a model
+        // (no tools), and an addition to the agent's own when it is being an
+        // agent. Measured on Claude Code: replacing it takes a call from ~7,000
+        // prompt tokens to a few hundred, which at optimizer scale is the bill.
+        let instructions = join(
+            self.instructions.as_deref(),
+            rendered.instructions.as_deref(),
+        );
+        let (system_prompt, extra_instructions) = match self.tools {
+            ToolAccess::None => (instructions, None),
+            _ => (None, instructions),
+        };
         RunRequest {
             run_id: format!("dsrust-{}-{n}", std::process::id()),
             prompt: rendered.prompt,
@@ -118,11 +142,10 @@ impl<H: Harness> HarnessModel<H> {
             tuning: RunTuning {
                 model: self.model.clone().or_else(|| nonblank(&request.model)),
                 max_turns: self.max_turns,
+                max_thinking_tokens: self.max_thinking_tokens,
                 output_schema: request.output_schema().cloned(),
-                extra_instructions: join(
-                    self.instructions.as_deref(),
-                    rendered.instructions.as_deref(),
-                ),
+                system_prompt,
+                extra_instructions,
                 ..RunTuning::default()
             },
             resume: None,
