@@ -40,4 +40,7 @@ pollster = "0.4"
 base64 = "0.22"
 
 [dev-dependencies]
+# A stand-in provider that records the request body: the only way to know what
+# reached the wire, as opposed to what the framework meant to send.
+tiny_http = "0.12"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
