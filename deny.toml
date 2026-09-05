@@ -75,9 +75,3 @@ allow-wildcard-paths = true
 # of thing that is obvious in review and invisible in a lockfile.
 unknown-registry = "deny"
 unknown-git = "deny"
-# The one exception, and why it is not the case above: `dsrust-harness` is `publish = false` and
-# pins a rev of agent-harness for two behaviours that are on its main branch and not yet in a
-# release (host tools; `extra_instructions` reaching Claude and Codex). The pin is a rev, so a build
-# is the same build tomorrow. Remove this entry when agent-harness 0.6.0-alpha.2 is on crates.io and the
-# manifest says `version` again.
-allow-git = ["https://github.com/getlatentic/agent-harness"]

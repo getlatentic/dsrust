@@ -160,8 +160,7 @@ any [agent-harness](https://crates.io/crates/agent-harness) adapter — Claude C
 agent, the built-in OpenAI-compatible runtime — behind `ChatModel`, so a `Predict`, a
 `ChainOfThought` or a `ReActV2` runs on an agent the user already has signed in, on its own
 billing, with no API key in the program. The other direction is `tool_server`: dsrust `Tool`s
-offered to the agent as an MCP server living in your process. Not yet published; it pins a
-branch of agent-harness until 0.6.0-alpha.2 ships.
+offered to the agent as an MCP server living in your process. Not yet published.
 
 ---
 
