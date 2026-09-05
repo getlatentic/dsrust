@@ -4,13 +4,12 @@
 //! dsrust [`Tool`] it names. Nothing is spawned and nothing listens on a port —
 //! agent-harness serves the server over the agent's own protocol.
 
-use std::sync::Arc;
-
 use dsrust::Tool;
 use harness::{HostTool, ToolServer};
 use serde_json::{Value, json};
 
-/// `tools` as one host tool server the agent sees as `name`.
+/// `tools` as one host tool server the agent sees as `name` — the same
+/// `Vec<Box<dyn Tool>>` a `ReActV2!` takes, so one roster serves either loop.
 ///
 /// Call this inside a tokio runtime when any tool is async: the agent invokes
 /// tools from a thread of its own, and the runtime the caller is on is what
@@ -23,7 +22,7 @@ use serde_json::{Value, json};
 /// tool: a deadlock, and a quiet one.
 pub fn tool_server(
     name: impl Into<String>,
-    tools: impl IntoIterator<Item = Arc<dyn Tool>>,
+    tools: impl IntoIterator<Item = Box<dyn Tool>>,
 ) -> ToolServer {
     server(name, tools, false)
 }
@@ -36,14 +35,14 @@ pub fn tool_server(
 /// offered there too.
 pub fn read_only_tool_server(
     name: impl Into<String>,
-    tools: impl IntoIterator<Item = Arc<dyn Tool>>,
+    tools: impl IntoIterator<Item = Box<dyn Tool>>,
 ) -> ToolServer {
     server(name, tools, true)
 }
 
 fn server(
     name: impl Into<String>,
-    tools: impl IntoIterator<Item = Arc<dyn Tool>>,
+    tools: impl IntoIterator<Item = Box<dyn Tool>>,
     read_only: bool,
 ) -> ToolServer {
     let runtime = tokio::runtime::Handle::try_current().ok();
@@ -60,7 +59,7 @@ fn server(
 
 /// One dsrust tool behind the host-tool contract.
 struct Hosted {
-    tool: Arc<dyn Tool>,
+    tool: Box<dyn Tool>,
     runtime: Option<tokio::runtime::Handle>,
     read_only: bool,
 }
@@ -119,8 +118,8 @@ mod tests {
     use super::*;
     use dsrust::FnTool;
 
-    fn lookup() -> Arc<dyn Tool> {
-        Arc::new(FnTool::new(
+    fn lookup() -> Box<dyn Tool> {
+        Box::new(FnTool::new(
             "lookup",
             "look something up",
             json!({ "query": { "type": "string" }, "limit": { "type": "integer", "default": 5 } }),
@@ -191,7 +190,7 @@ mod tests {
                 }
             }
         }
-        let server = tool_server("s", [Arc::new(Structured) as Arc<dyn Tool>]);
+        let server = tool_server("s", [Box::new(Structured) as Box<dyn Tool>]);
         let tool = &server.tools()[0];
         assert_eq!(tool.call(json!({})), Ok(r#"{"units":3}"#.to_owned()));
         assert_eq!(tool.call(json!({ "fail": true })), Err("closed".to_owned()));
@@ -230,7 +229,7 @@ mod tests {
         // running — the agent's shape. A `std::thread::spawn(..).join()` here would park
         // this current-thread runtime and the timer would never fire: the footgun the
         // docs on `tool_server` name.
-        let server = tool_server("s", [Arc::new(Sleepy) as Arc<dyn Tool>]);
+        let server = tool_server("s", [Box::new(Sleepy) as Box<dyn Tool>]);
         let answered = tokio::task::spawn_blocking(move || server.tools()[0].call(json!({})))
             .await
             .unwrap();

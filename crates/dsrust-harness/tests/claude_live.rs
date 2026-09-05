@@ -129,7 +129,7 @@ async fn a_predict_over_claude_as_an_agent_reaches_a_dsrust_tool_in_this_process
 
     let called = Arc::new(AtomicBool::new(false));
     let seen = Arc::clone(&called);
-    let lookup: Arc<dyn Tool> = Arc::new(FnTool::new(
+    let lookup: Box<dyn Tool> = Box::new(FnTool::new(
         "lookup",
         "Look up the secret code for a project name.",
         json!({ "project": { "type": "string" } }),
