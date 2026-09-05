@@ -290,6 +290,45 @@ async fn empty_tool_calls_force_a_final_submit() {
     );
 }
 
+/// A model that never calls a tool ends the run with no answer at all.
+///
+/// This is the shape a model that runs its *own* tools produces: prose every turn and nothing for
+/// the loop to dispatch. The first turn breaks out on `empty_tool_calls`, the forced submit finds
+/// no `submit` among the calls it was given, and `failed` answers with the history and a
+/// termination reason and no task output field. Nothing raises, so a caller who reads only
+/// `answer` sees `None` and is told why nowhere else.
+///
+/// The case beside this one scripts the forced turn to volunteer `submit`, which is the recovery.
+/// This is the branch where it does not, and it is the one an agent backed by something that
+/// executes tools behind dsrust's back lands in every time.
+#[tokio::test]
+async fn a_model_that_never_calls_a_tool_answers_nothing_and_says_why() {
+    let lm = Arc::new(DummyLM::new([
+        turn("I handled it myself.", json!({ "tool_calls": [] })),
+        turn("Still nothing to call.", json!({ "tool_calls": [] })),
+    ]));
+    let prediction = agent(vec![lookup()], lm)
+        .forward(Example::new([("question", json!("cats"))]))
+        .await
+        .expect("the loop ends rather than raising");
+
+    assert_eq!(
+        prediction.get("answer"),
+        None,
+        "the task's own output field is absent, not empty: {:?}",
+        prediction.get("answer")
+    );
+    assert_eq!(
+        prediction.get("termination_reason").and_then(Value::as_str),
+        Some("empty_tool_calls"),
+        "the reason is the only record that the run went nowhere"
+    );
+    assert!(
+        history_of(&prediction).messages.is_empty(),
+        "no turn was recorded, because no tool ran"
+    );
+}
+
 // --- Native function calling: the provider calls the tools itself. -----------------------------
 
 /// A model that calls tools of its own, one reply per turn, recording every request it was handed.
