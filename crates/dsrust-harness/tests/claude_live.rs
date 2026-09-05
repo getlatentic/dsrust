@@ -11,7 +11,7 @@ use std::sync::Arc;
 use dsrust::lm::DynChatModel;
 use dsrust::{Example, FnTool, Module, Predict, ReActV2, Tool};
 use dsrust_harness::HarnessModel;
-use harness::Claude;
+use harness::{Claude, ToolAccess};
 use serde_json::{Value, json};
 
 /// Not a word, and absent from the prompt: it reaches an answer only via the tool.
@@ -21,9 +21,11 @@ fn claude() -> Arc<dyn DynChatModel> {
     let workspace = std::env::temp_dir().join("dsrust-harness-live");
     std::fs::create_dir_all(&workspace).expect("workspace");
     Arc::new(
-        HarnessModel::new(Claude::new())
-            .with_cwd(workspace)
-            .with_max_turns(4),
+        HarnessModel::builder(Claude::new())
+            .cwd(workspace)
+            .max_turns(4)
+            .build()
+            .expect("claude withholds its tools"),
     )
 }
 
@@ -121,7 +123,7 @@ async fn react_v2_over_claude_code_dispatches_its_own_tools_and_answers() {
 /// tool call at all.
 #[tokio::test]
 #[ignore = "live: needs the claude CLI installed and signed in; costs tokens"]
-async fn a_predict_over_claude_with_agent_tools_reaches_a_dsrust_tool_in_this_process() {
+async fn a_predict_over_claude_as_an_agent_reaches_a_dsrust_tool_in_this_process() {
     use dsrust_harness::tool_server;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -141,10 +143,13 @@ async fn a_predict_over_claude_with_agent_tools_reaches_a_dsrust_tool_in_this_pr
     ));
     let workspace = std::env::temp_dir().join("dsrust-harness-live-a");
     std::fs::create_dir_all(&workspace).expect("workspace");
-    let model = HarnessModel::new(Claude::new().with_tool_server(tool_server("shop", [lookup])))
-        .with_agent_tools()
-        .with_cwd(workspace)
-        .with_max_turns(6);
+    let model =
+        HarnessModel::builder(Claude::new().with_tool_server(tool_server("shop", [lookup])))
+            .tools(ToolAccess::Default)
+            .cwd(workspace)
+            .max_turns(6)
+            .build()
+            .expect("an agent with its tools");
     let qa = Predict::parse("question -> answer")
         .expect("a signature")
         .set_lm(Arc::new(model) as Arc<dyn DynChatModel>);

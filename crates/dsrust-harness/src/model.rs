@@ -1,7 +1,6 @@
 //! A coding agent behind dsrust's `ChatModel`.
 
 use std::future::Future;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{Context, Result, anyhow};
@@ -9,6 +8,7 @@ use dsrust::lm::ChatModel;
 use dsrust::lm::api::{LmRequest, LmResponse};
 use harness::{Harness, RunHandle, RunMode, RunRequest, RunTuning, ToolAccess};
 
+use crate::builder::{HarnessModelBuilder, Settings};
 use crate::{collect, prompt};
 
 /// Standing instructions every request carries, unless a caller replaces them.
@@ -27,13 +27,17 @@ pub const MARKER_DISCIPLINE: &str = "Reply in plain text only: no Markdown fence
 /// Any [`Harness`] — Claude Code, Codex, an ACP agent, the built-in
 /// OpenAI-compatible runtime — as the model a dsrust program calls.
 ///
-/// Every request runs with [`ToolAccess::None`]. The agent's own tools would
-/// otherwise run behind dsrust's back: for an ordinary `Predict` that is wasted
-/// turns and a filesystem the prompt never mentioned; for a `ReActV2` loop it is
-/// fatal, because the loop reads tool calls out of the reply and a reply that
-/// already acted on them carries none. `ToolAccess::None` is a guarantee on the
-/// adapters that advertise it and a refusal on the rest — see
-/// `Features::withheld_tools` — so this never silently degrades.
+/// Built with [`HarnessModel::new`] for the defaults or [`HarnessModel::builder`]
+/// to name them, the way `LM::new` and `LM::builder` do.
+///
+/// By default every request runs with [`ToolAccess::None`]. The agent's own tools
+/// would otherwise run behind dsrust's back: for an ordinary `Predict` that is
+/// wasted turns and a filesystem the prompt never mentioned; for a `ReActV2` loop
+/// it is fatal, because the loop reads tool calls out of the reply and a reply
+/// that already acted on them carries none. `ToolAccess::None` is a guarantee on
+/// the adapters that advertise it and a refusal on the rest — see
+/// `Features::withheld_tools` — so `build` turns such a harness away rather than
+/// letting it degrade silently.
 ///
 /// Capabilities are dsrust's defaults, all off: tools are rendered into the
 /// prompt and read back from text, which is the path an agent CLI can serve.
@@ -43,78 +47,28 @@ pub const MARKER_DISCIPLINE: &str = "Reply in plain text only: no Markdown fence
 /// agent's narration.
 pub struct HarnessModel<H> {
     harness: H,
-    tools: ToolAccess,
-    model: Option<String>,
-    cwd: Option<PathBuf>,
-    max_turns: Option<u32>,
-    max_thinking_tokens: Option<u32>,
-    instructions: Option<String>,
+    settings: Settings,
     calls: AtomicU64,
 }
 
 impl<H: Harness> HarnessModel<H> {
-    /// `harness` as a model, with [`MARKER_DISCIPLINE`] as its standing instructions.
-    pub fn new(harness: H) -> Self {
+    /// `harness` as a model with every setting at its default, or the reason it cannot
+    /// be one — see [`HarnessModelBuilder::build`].
+    pub fn new(harness: H) -> Result<Self> {
+        Self::builder(harness).build()
+    }
+
+    /// `harness` as a model, its settings named one by one.
+    pub fn builder(harness: H) -> HarnessModelBuilder<H> {
+        HarnessModelBuilder::new(harness)
+    }
+
+    pub(crate) fn from_parts(harness: H, settings: Settings) -> Self {
         Self {
             harness,
-            tools: ToolAccess::None,
-            model: None,
-            cwd: None,
-            max_turns: None,
-            max_thinking_tokens: None,
-            instructions: Some(MARKER_DISCIPLINE.to_owned()),
+            settings,
             calls: AtomicU64::new(0),
         }
-    }
-
-    /// Let the agent use its tools — its own, and any [`ToolServer`](harness::ToolServer)
-    /// attached to the harness — and hand back the answer it reaches with them.
-    ///
-    /// This is the agent as a *module*: a `Predict` over a model built this way
-    /// gets one reply per call, arrived at by whatever tool loop the agent ran,
-    /// and stays an ordinary predictor an optimizer can rewrite. It is the wrong
-    /// choice under a `ReActV2`, whose own loop needs the tool calls back as
-    /// calls; see [`HarnessModel`] for why the default withholds them.
-    pub fn with_agent_tools(mut self) -> Self {
-        self.tools = ToolAccess::Default;
-        self
-    }
-
-    /// The model the agent should use, as its CLI names it (`sonnet`, `o3`). Overrides
-    /// whatever the request names; `None` leaves the CLI's own default.
-    pub fn with_model(mut self, model: impl Into<String>) -> Self {
-        self.model = Some(model.into());
-        self
-    }
-
-    /// The working directory each run gets. Named rather than inherited: an
-    /// agent's reach is its cwd, and the host process's is rarely what a prompt
-    /// meant.
-    pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
-        self.cwd = Some(cwd.into());
-        self
-    }
-
-    /// Cap on the agent's turns per call, where the adapter honours one.
-    pub fn with_max_turns(mut self, turns: u32) -> Self {
-        self.max_turns = Some(turns);
-        self
-    }
-
-    /// Cap the agent's extended thinking, in tokens; `0` turns it off. Measured
-    /// on Claude Code: thinking off took a judge-shaped call from 10.0s to 7.9s
-    /// and its output from 240 tokens to 72. A judge or a classifier rarely
-    /// needs it; a reflection model usually does — leave it unset there.
-    pub fn with_max_thinking_tokens(mut self, tokens: u32) -> Self {
-        self.max_thinking_tokens = Some(tokens);
-        self
-    }
-
-    /// Replace the standing instructions. `None` sends only what the request's
-    /// own system messages say.
-    pub fn with_instructions(mut self, instructions: Option<String>) -> Self {
-        self.instructions = instructions;
-        self
     }
 
     fn run_request(&self, request: &LmRequest, rendered: prompt::Rendered) -> RunRequest {
@@ -124,11 +78,12 @@ impl<H: Harness> HarnessModel<H> {
         // (no tools), and an addition to the agent's own when it is being an
         // agent. Measured on Claude Code: replacing it takes a call from ~7,000
         // prompt tokens to a few hundred, which at optimizer scale is the bill.
+        let settings = &self.settings;
         let instructions = join(
-            self.instructions.as_deref(),
+            settings.instructions.as_deref(),
             rendered.instructions.as_deref(),
         );
-        let (system_prompt, extra_instructions) = match self.tools {
+        let (system_prompt, extra_instructions) = match settings.tools {
             ToolAccess::None => (instructions, None),
             _ => (None, instructions),
         };
@@ -136,13 +91,13 @@ impl<H: Harness> HarnessModel<H> {
             run_id: format!("dsrust-{}-{n}", std::process::id()),
             prompt: rendered.prompt,
             attachments: rendered.attachments,
-            cwd: self.cwd.clone(),
+            cwd: settings.cwd.clone(),
             mode: RunMode::Ask,
-            tools: self.tools,
+            tools: settings.tools,
             tuning: RunTuning {
-                model: self.model.clone().or_else(|| nonblank(&request.model)),
-                max_turns: self.max_turns,
-                max_thinking_tokens: self.max_thinking_tokens,
+                model: settings.model.clone().or_else(|| nonblank(&request.model)),
+                max_turns: settings.max_turns,
+                max_thinking_tokens: settings.max_thinking_tokens,
                 output_schema: request.output_schema().cloned(),
                 system_prompt,
                 extra_instructions,

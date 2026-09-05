@@ -14,7 +14,7 @@
 //! use dsrust_harness::HarnessModel;
 //!
 //! # async fn ask() -> anyhow::Result<()> {
-//! let claude = Arc::new(HarnessModel::new(Claude::new()).with_cwd(std::env::temp_dir()));
+//! let claude = Arc::new(HarnessModel::builder(Claude::new()).cwd(std::env::temp_dir()).build()?);
 //! let qa = Predict::parse("question -> answer")?.set_lm(claude as Arc<dyn DynChatModel>);
 //! let answer = qa.forward(Example::new([("question", serde_json::json!("What is 2+2?"))])).await?;
 //! # Ok(())
@@ -28,10 +28,11 @@
 //!
 //! The other direction is [`tool_server`]: dsrust [`Tool`](dsrust::Tool)s offered
 //! to the agent as an MCP server living in this process, with
-//! [`HarnessModel::with_agent_tools`] letting the agent use them. A `Predict`
+//! `.tools(ToolAccess::Default)` on the [`HarnessModelBuilder`] letting the agent use them. A `Predict`
 //! over that is the agent as a module — one answer per call, reached with your
 //! tools, and still a predictor an optimizer can rewrite.
 
+mod builder;
 mod collect;
 mod model;
 mod prompt;
@@ -43,5 +44,6 @@ pub mod tools;
 /// and a `Claude` from it would not be one this crate's model accepts.
 pub use harness;
 
+pub use builder::HarnessModelBuilder;
 pub use model::{HarnessModel, MARKER_DISCIPLINE};
 pub use tools::{read_only_tool_server, tool_server};

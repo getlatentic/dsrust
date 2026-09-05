@@ -7,8 +7,8 @@ use dsrust::lm::ChatModel;
 use dsrust::lm::api::{LmMessage, LmRequest};
 use dsrust_harness::{HarnessModel, MARKER_DISCIPLINE};
 use harness::{
-    CredentialSpec, Error, Harness, Info, Readiness, RunCallback, RunControl, RunEvent, RunHandle,
-    RunRequest, ToolAccess,
+    CredentialSpec, Error, Features, Harness, Info, Readiness, RunCallback, RunControl, RunEvent,
+    RunHandle, RunRequest, ToolAccess,
 };
 use serde_json::json;
 
@@ -17,6 +17,7 @@ struct Scripted {
     events: Vec<RunEvent>,
     seen: Arc<Mutex<Vec<RunRequest>>>,
     cancelled: Arc<Mutex<bool>>,
+    withholds_tools: bool,
 }
 
 struct Control(Arc<Mutex<bool>>);
@@ -37,6 +38,12 @@ impl Harness for Scripted {
             display_name: "Scripted".into(),
             description: String::new(),
             install_hint: None,
+        }
+    }
+    fn features(&self) -> Features {
+        Features {
+            withheld_tools: self.withholds_tools,
+            ..Features::default()
         }
     }
     fn readiness(&self) -> Readiness {
@@ -70,6 +77,7 @@ fn answering(text: &str) -> (Scripted, Arc<Mutex<Vec<RunRequest>>>) {
         ],
         seen: Arc::clone(&seen),
         cancelled: Arc::default(),
+        withholds_tools: true,
     };
     (harness, seen)
 }
@@ -81,7 +89,7 @@ fn ask(messages: Vec<LmMessage>) -> LmRequest {
 #[tokio::test]
 async fn every_call_withholds_the_agents_tools_and_carries_the_marker_discipline() {
     let (harness, seen) = answering("[[ ## answer ## ]]\n4");
-    let model = HarnessModel::new(harness);
+    let model = HarnessModel::new(harness).unwrap();
     let reply = model
         .forward(&ask(vec![
             LmMessage::system(["be brief"]),
@@ -127,10 +135,12 @@ async fn every_call_withholds_the_agents_tools_and_carries_the_marker_discipline
 #[tokio::test]
 async fn a_configured_model_cwd_and_turn_cap_override_the_request_and_a_schema_passes_through() {
     let (harness, seen) = answering("{}");
-    let model = HarnessModel::new(harness)
-        .with_model("opus")
-        .with_cwd("/tmp/work")
-        .with_max_turns(3);
+    let model = HarnessModel::builder(harness)
+        .model("opus")
+        .cwd("/tmp/work")
+        .max_turns(3)
+        .build()
+        .unwrap();
     let mut request = ask(vec![LmMessage::user(["q"])]);
     request.config.response_format = Some(json!({ "type": "object" }));
     model.forward(&request).await.unwrap();
@@ -148,7 +158,10 @@ async fn a_configured_model_cwd_and_turn_cap_override_the_request_and_a_schema_p
 #[tokio::test]
 async fn instructions_can_be_replaced_or_removed() {
     let (harness, seen) = answering("x");
-    let model = HarnessModel::new(harness).with_instructions(None);
+    let model = HarnessModel::builder(harness)
+        .instructions("")
+        .build()
+        .unwrap();
     model
         .forward(&ask(vec![LmMessage::user(["q"])]))
         .await
@@ -169,9 +182,11 @@ async fn as_an_agent_the_instructions_are_added_beside_the_agents_own_prompt() {
     // With tools, the agent needs its own prompt to drive them; ours rides as
     // an addition, and a thinking cap travels as given.
     let (harness, seen) = answering("x");
-    let model = HarnessModel::new(harness)
-        .with_agent_tools()
-        .with_max_thinking_tokens(0);
+    let model = HarnessModel::builder(harness)
+        .tools(ToolAccess::Default)
+        .max_thinking_tokens(0)
+        .build()
+        .unwrap();
     model
         .forward(&ask(vec![
             LmMessage::system(["be brief"]),
@@ -208,8 +223,10 @@ async fn a_failed_run_is_an_error_the_caller_can_read() {
         ],
         seen: Arc::default(),
         cancelled: Arc::default(),
+        withholds_tools: true,
     };
     let err = HarnessModel::new(harness)
+        .unwrap()
         .forward(&ask(vec![LmMessage::user(["q"])]))
         .await
         .unwrap_err();
@@ -231,6 +248,12 @@ impl Harness for Hanging {
             display_name: "Hanging".into(),
             description: String::new(),
             install_hint: None,
+        }
+    }
+    fn features(&self) -> Features {
+        Features {
+            withheld_tools: true,
+            ..Features::default()
         }
     }
     fn readiness(&self) -> Readiness {
@@ -265,7 +288,8 @@ async fn dropping_the_call_cancels_the_agent_whether_or_not_it_was_polled() {
     let cancelled: Arc<Mutex<bool>> = Arc::default();
     let model = HarnessModel::new(Hanging {
         cancelled: Arc::clone(&cancelled),
-    });
+    })
+    .unwrap();
     let request = ask(vec![LmMessage::user(["q"])]);
 
     let never_polled = model.forward(&request);
@@ -294,7 +318,7 @@ async fn dropping_the_call_cancels_the_agent_whether_or_not_it_was_polled() {
 #[tokio::test]
 async fn each_call_gets_its_own_run_id() {
     let (harness, seen) = answering("x");
-    let model = HarnessModel::new(harness);
+    let model = HarnessModel::new(harness).unwrap();
     model
         .forward(&ask(vec![LmMessage::user(["a"])]))
         .await
@@ -307,5 +331,38 @@ async fn each_call_gets_its_own_run_id() {
     assert_ne!(
         seen[0].run_id, seen[1].run_id,
         "a host correlating events by run id must not see two runs as one"
+    );
+}
+
+#[test]
+fn a_harness_that_cannot_withhold_its_tools_is_refused_at_build_not_at_the_first_call() {
+    // Codex and ACP cannot un-offer their tools; `Features::withheld_tools` says so.
+    // A model over one of them would fail every `forward`, so `build` is where it
+    // is turned away — and where `.tools(ToolAccess::Default)` is still a choice.
+    let cannot = || Scripted {
+        events: Vec::new(),
+        seen: Arc::default(),
+        cancelled: Arc::default(),
+        withholds_tools: false,
+    };
+    let Err(refused) = HarnessModel::new(cannot()) else {
+        panic!("a harness that cannot withhold its tools was accepted as a model");
+    };
+    let refused = refused.to_string();
+    assert!(refused.contains("Scripted"), "names the harness: {refused}");
+    assert!(
+        refused.contains("ToolAccess::None"),
+        "and what was asked: {refused}"
+    );
+    assert!(
+        refused.contains("ToolAccess::Default"),
+        "and the way out: {refused}"
+    );
+    assert!(
+        HarnessModel::builder(cannot())
+            .tools(ToolAccess::Default)
+            .build()
+            .is_ok(),
+        "as an agent it is fine"
     );
 }

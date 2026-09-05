@@ -55,9 +55,11 @@ fn both_fields(prediction: &dsrust::Prediction) -> (String, String) {
 async fn the_json_adapter_over_claude_code_fills_every_typed_field() {
     use dsrust_harness::harness::Claude;
     let model = Arc::new(
-        HarnessModel::new(Claude::new())
-            .with_cwd(workspace())
-            .with_max_turns(2),
+        HarnessModel::builder(Claude::new())
+            .cwd(workspace())
+            .max_turns(2)
+            .build()
+            .expect("claude withholds its tools"),
     );
     let (category, urgency) = both_fields(&triage(model).await);
     assert!(
@@ -74,10 +76,12 @@ async fn the_json_adapter_over_claude_code_fills_every_typed_field() {
 async fn the_json_adapter_over_ollama_gets_a_schema_constrained_reply() {
     use dsrust_harness::harness::OpenHarness;
     let model = Arc::new(
-        HarnessModel::new(OpenHarness::ollama().with_context_tokens(32_000))
-            .with_model("gpt-oss:20b")
-            .with_cwd(workspace())
-            .with_max_turns(2),
+        HarnessModel::builder(OpenHarness::ollama().with_context_tokens(32_000))
+            .model("gpt-oss:20b")
+            .cwd(workspace())
+            .max_turns(2)
+            .build()
+            .expect("the openai-compatible runtime withholds its tools"),
     );
     let (category, urgency) = both_fields(&triage(model).await);
     assert!(
@@ -96,9 +100,11 @@ async fn claude_codes_reply_text_is_exactly_the_json_when_a_schema_is_asked_for(
     use dsrust::lm::api::{LmMessage, LmRequest};
     use dsrust_harness::harness::Claude;
 
-    let model = HarnessModel::new(Claude::new())
-        .with_cwd(workspace())
-        .with_max_turns(2);
+    let model = HarnessModel::builder(Claude::new())
+        .cwd(workspace())
+        .max_turns(2)
+        .build()
+        .expect("claude withholds its tools");
     let mut request = LmRequest::from_messages(
         "sonnet",
         vec![LmMessage::user([format!("Triage this ticket: {TICKET}")])],

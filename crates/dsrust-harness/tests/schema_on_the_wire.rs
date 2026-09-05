@@ -68,9 +68,11 @@ async fn the_json_adapters_schema_arrives_wrapped_exactly_once_as_response_forma
     // 127.0.0.1 reads as local, and the stand-in answers no `/props` probe.
     .with_context_tokens(32_000);
     let model: Arc<dyn DynChatModel> = Arc::new(
-        HarnessModel::new(harness)
-            .with_model("test-model")
-            .with_cwd(std::env::temp_dir()),
+        HarnessModel::builder(harness)
+            .model("test-model")
+            .cwd(std::env::temp_dir())
+            .build()
+            .expect("the openai-compatible runtime withholds its tools"),
     );
 
     let out = Predict::parse("ticket -> category, urgency")
