@@ -165,6 +165,11 @@ BASELINES=(
   "pyrng:29:0"
   "dsrust-gepa:13:0"
   "dsrust-json-repair:156:1"
+  # Measured three times at 76 mutants. Run one found six, one of them a design fault (the
+  # cancel-on-drop guard built inside the async block, so an unpolled future never cancelled);
+  # run two tested nothing because its baseline failed on a racy test that run had just exposed;
+  # run three: 66 caught, 0 missed, 10 unviable (`Default` on types without one), 0 hangs.
+  "dsrust-harness:0:0"
 )
 
 # The `dsrust` slices with floors. Scoped because the whole crate is a five-hour run, and a gate
