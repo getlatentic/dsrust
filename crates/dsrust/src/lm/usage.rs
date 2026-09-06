@@ -279,6 +279,41 @@ mod tests {
         uninstall();
     }
 
+    /// The guard's own `Drop`, which `a_dropped_scope_stops_counting` never reaches: that one
+    /// drives `install`/`uninstall` and so proves the mechanism while leaving `Tracking::drop`
+    /// unexercised.
+    ///
+    /// No `exclusive()` here, and that is not an oversight. `track()` takes the same scope lock
+    /// that `exclusive()` holds, and a `std::sync::Mutex` is not reentrant — taking both on one
+    /// thread deadlocks, which is why every other test in this module reaches for the helpers
+    /// instead. `track()` serialises this test against them on its own.
+    ///
+    /// Asserted on the slot rather than on a later `track()`, because `track()` overwrites the
+    /// slot unconditionally: a second scope reads empty whether or not the first cleared up.
+    #[test]
+    fn dropping_the_guard_clears_the_installed_tracker() {
+        {
+            let counting = track();
+            record("anthropic/claude", Some(usage(5, 5)));
+            assert_eq!(counting.total(), usage(5, 5));
+        }
+
+        assert!(
+            installed().lock().expect("not poisoned").is_none(),
+            "the guard took the tracker down with it"
+        );
+    }
+
+    /// `is_empty` answering `true` unconditionally survived: every use of it asserted the empty
+    /// direction, so the loaded one was never named.
+    #[test]
+    fn a_tracker_that_has_been_charged_is_not_empty() {
+        let tracker = UsageTracker::default();
+        assert!(tracker.is_empty(), "nothing charged yet");
+        tracker.add("anthropic/claude", usage(1, 1));
+        assert!(!tracker.is_empty(), "and not once something has been");
+    }
+
     /// A replay was already paid for once, and `spend` is how that arrives here as nothing.
     #[test]
     fn a_call_that_spent_nothing_is_not_charged() {

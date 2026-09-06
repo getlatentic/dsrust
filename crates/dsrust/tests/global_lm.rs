@@ -65,9 +65,11 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
     assert_eq!(failed.kind, dsrust::lm::LmErrorKind::Transport);
     assert_eq!(failed.provider.as_deref(), Some("ollama"));
 
-    // Reconfiguring through the own-client path must win over the previous configure.
+    // Reconfiguring must win over the previous configure. Named differently on purpose: the
+    // first LM is also ollama at the same unroutable host, so asserting the provider cannot tell
+    // a reconfigure from a no-op — `configure` deleted entirely used to pass this.
     lm::configure(
-        LM::new("ollama/whatever")
+        LM::new("ollama/reconfigured")
             .expect("valid model ref")
             .ollama_host(UNROUTABLE_OLLAMA),
     );
@@ -75,11 +77,14 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
         .call_inputs(&inputs)
         .await
         .expect_err("host is still unroutable");
-    assert!(
-        reconfigured
-            .downcast_ref::<dsrust::lm::LmFailure>()
-            .is_some_and(|failed| { failed.provider.as_deref() == Some("ollama") }),
-        "the reconfigured ollama LM is what was reached: {reconfigured:#}"
+    let failed = reconfigured
+        .downcast_ref::<dsrust::lm::LmFailure>()
+        .unwrap_or_else(|| panic!("a typed LM failure, got: {reconfigured:#}"));
+    assert_eq!(failed.provider.as_deref(), Some("ollama"));
+    assert_eq!(
+        failed.model.as_deref(),
+        Some("reconfigured"),
+        "the model this configure installed is the one that was reached"
     );
 
     // The call macro's expansion resolves the same global: it must reach the provider, not
