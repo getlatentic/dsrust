@@ -574,3 +574,67 @@ async fn the_opt_in_does_not_reach_a_knob_the_agent_cannot_stand_in_for() {
     );
     assert!(seen.lock().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn replaced_instructions_are_the_ones_that_travel() {
+    // The other half of `instructions`: the existing test pins that blank removes the
+    // standing text and never that non-blank text arrives. A mutant that inverted the
+    // blank check dropped every real instruction and kept the empty one, and nothing
+    // noticed, because `None` and a blank both read as "nothing" downstream.
+    let (harness, seen) = answering("x");
+    let model = HarnessModel::builder(harness)
+        .instructions("be terse")
+        .build()
+        .unwrap();
+    model
+        .forward(&ask(vec![LmMessage::user(["q"])]))
+        .await
+        .unwrap();
+    let run = &seen.lock().unwrap()[0];
+    let prompt = run
+        .tuning
+        .system_prompt
+        .as_deref()
+        .expect("the replacement travels");
+    assert!(prompt.contains("be terse"), "{prompt:?}");
+    assert!(
+        !prompt.contains(MARKER_DISCIPLINE),
+        "replaced, not appended to: {prompt:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_thinking_cap_reaches_the_run_and_the_request_beats_the_builder() {
+    // Every earlier assertion on the cap used zero, so a body of `Some(0)` survived
+    // mutation. Non-zero in both directions: the builder's value travels when the
+    // request names none, and a request's `reasoning.max_tokens` wins over it —
+    // dspy's order, per-call kwargs over `lm.kwargs`.
+    let (harness, seen) = answering("x");
+    let model = HarnessModel::builder(harness)
+        .max_thinking_tokens(7)
+        .build()
+        .unwrap();
+
+    model
+        .forward(&ask(vec![LmMessage::user(["q"])]))
+        .await
+        .unwrap();
+    let mut request = ask(vec![LmMessage::user(["q"])]);
+    request.config.reasoning = Some(LmReasoningConfig {
+        max_tokens: Some(3),
+        ..LmReasoningConfig::default()
+    });
+    model.forward(&request).await.unwrap();
+
+    let seen = seen.lock().unwrap();
+    assert_eq!(
+        seen[0].tuning.max_thinking_tokens,
+        Some(7),
+        "the builder's cap, when the request names none"
+    );
+    assert_eq!(
+        seen[1].tuning.max_thinking_tokens,
+        Some(3),
+        "the request's cap beats the builder's"
+    );
+}

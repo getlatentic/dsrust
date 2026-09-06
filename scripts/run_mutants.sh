@@ -216,6 +216,10 @@ SLICES=(
   "openai:0:0"
   "signature:0:0"
   "optimize:0:0"
+  # One file, on purpose. `module/` was never a slice, so `ambient.rs` — the seam every
+  # attributed demo depends on — sat outside every floor from the day it landed. Measured at
+  # zero over the portable rewrite; widen to the directory only after measuring it.
+  "module:0:0"
 )
 slice_files() {
   case "$1" in
@@ -235,6 +239,7 @@ slice_files() {
     optimize) printf '%s\n' \
       'crates/dsrust/src/optimize/**/*.rs' \
       crates/dsrust/src/optimize.rs ;;
+    module) printf '%s\n' crates/dsrust/src/module/ambient.rs ;;
   esac
 }
 
