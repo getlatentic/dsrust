@@ -456,16 +456,15 @@ mod tests {
         ]));
         let mut program = Predict::from_signature(signature());
         let watched = crate::lm::global::context_model(reqwest::Client::new(), lm).run(async {
-            let mut seen = Vec::new();
-            let mut running = std::pin::pin!(streamify(
+            drained(streamify(
                 &mut program,
                 "answer",
-                crate::input! { question: "where?" }
-            ));
-            while let Some(next) = running.next().await {
-                seen.push(next.expect("a streamed item"));
-            }
-            seen
+                crate::input! { question: "where?" },
+            ))
+            .await
+            .into_iter()
+            .map(|next| next.expect("a streamed item"))
+            .collect::<Vec<_>>()
         });
         let seen = watched.await;
 
@@ -521,6 +520,24 @@ mod tests {
     /// A run that was given words says what it is doing, on the same stream as the field's text.
     ///
     /// Only the two tool stages have default wording upstream, so a program with no tools is
+    /// Every item a run yields, or a failure rather than a hang.
+    ///
+    /// These streams end when the run does, and the run ends only if the poll-scoped callback
+    /// stack is put back after each poll. Unbounded, a regression there is a job that runs out of
+    /// time with no cause attached instead of a test that names what broke — which is exactly how
+    /// it presented when `scoped::Entered::drop` was mutated away.
+    async fn drained<S>(stream: S) -> Vec<S::Item>
+    where
+        S: Stream,
+    {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stream.collect::<Vec<_>>(),
+        )
+        .await
+        .expect("the stream ended rather than hanging")
+    }
+
     /// silent until a caller overrides a stage — which is what this does.
     #[tokio::test]
     async fn a_run_can_say_what_it_is_doing() {
@@ -540,15 +557,23 @@ mod tests {
             "\n\n[[ ## completed ## ]]",
         ]));
         let mut program = Predict::from_signature(signature());
-        let seen = crate::lm::global::context_model(reqwest::Client::new(), lm)
-            .run(async {
-                Watching::new(&mut program, "answer")
-                    .saying(std::sync::Arc::new(Narrating))
-                    .run(crate::input! { question: "where?" })
-                    .collect::<Vec<_>>()
-                    .await
-            })
-            .await;
+        // Bounded for the reason `a_finished_run_closes_the_stream` is: the status messages
+        // arrive through the poll-scoped callback stack, and a stack left unrestored stops the
+        // stream ending at all. Unbounded, that regression is a job that runs out of time rather
+        // than a test that says what broke.
+        let seen = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            crate::lm::global::context_model(reqwest::Client::new(), lm).run(async {
+                drained(
+                    Watching::new(&mut program, "answer")
+                        .saying(std::sync::Arc::new(Narrating))
+                        .run(crate::input! { question: "where?" }),
+                )
+                .await
+            }),
+        )
+        .await
+        .expect("the stream ended rather than hanging");
 
         let said: Vec<String> = seen
             .iter()
@@ -579,9 +604,12 @@ mod tests {
         let mut program = Predict::from_signature(signature());
         let seen = crate::lm::global::context_model(reqwest::Client::new(), lm)
             .run(async {
-                streamify(&mut program, "answer", crate::input! { question: "where?" })
-                    .collect::<Vec<_>>()
-                    .await
+                drained(streamify(
+                    &mut program,
+                    "answer",
+                    crate::input! { question: "where?" },
+                ))
+                .await
             })
             .await;
         assert!(
@@ -648,10 +676,11 @@ mod tests {
         ]));
         let seen = crate::lm::global::context_model(reqwest::Client::new(), lm)
             .run(async {
-                Watching::all(&mut program, &["answer", "judgement"])
-                    .run(crate::input! { question: "where?" })
-                    .collect::<Vec<_>>()
-                    .await
+                drained(
+                    Watching::all(&mut program, &["answer", "judgement"])
+                        .run(crate::input! { question: "where?" }),
+                )
+                .await
             })
             .await;
 
@@ -677,10 +706,10 @@ mod tests {
     #[tokio::test]
     async fn a_field_no_predictor_answers_is_refused() {
         let mut program = Predict::from_signature(signature());
-        let refused = Watching::new(&mut program, "nonesuch")
-            .run(crate::input! { question: "where?" })
-            .collect::<Vec<_>>()
-            .await;
+        let refused = drained(
+            Watching::new(&mut program, "nonesuch").run(crate::input! { question: "where?" }),
+        )
+        .await;
         let error = refused
             .into_iter()
             .next()
@@ -718,10 +747,10 @@ mod tests {
             Predict::from_signature(signature()),
             Predict::from_signature(signature()),
         );
-        let refused = Watching::new(&mut program, "answer")
-            .run(crate::input! { question: "where?" })
-            .collect::<Vec<_>>()
-            .await;
+        let refused = drained(
+            Watching::new(&mut program, "answer").run(crate::input! { question: "where?" }),
+        )
+        .await;
         let error = refused
             .into_iter()
             .next()

@@ -1,3 +1,7 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use super::*;
 use crate::signature::Signature;
 

@@ -12,7 +12,7 @@ use super::{DynChatModel, LM};
 
 /// The configured pair travels together: provider calls must go out on the client the
 /// configurer chose (the server passes its pooled one).
-struct Configured {
+pub(crate) struct Configured {
     http: reqwest::Client,
     lm: Arc<dyn DynChatModel>,
 }
@@ -210,54 +210,25 @@ pub struct Scope {
 impl Scope {
     /// Run `work` with this scope's model in force.
     pub async fn run<T>(self, work: impl Future<Output = T>) -> T {
-        Scoped {
-            configured: self.configured,
-            inner: Box::pin(work),
-        }
-        .await
+        crate::scoped::Scoped::<Configuring, _>::new(self.configured, work).await
     }
 }
 
-/// A future that runs under a scoped model: installed for the duration of each poll, and the
-/// enclosing scope put back when the poll returns.
+/// The model in force, for as long as the future holding it is polled or destroyed.
 ///
-/// Per poll rather than for the whole future, for the reason
-/// [`callback::context::Under`](crate::callback) is: `Evaluate` interleaves its rows inside one task,
-/// so a value set once and left would be read by whichever row was polled next.
-struct Scoped<F> {
-    configured: Configured,
-    inner: std::pin::Pin<Box<F>>,
-}
+/// Per poll rather than for the whole future: `Evaluate` interleaves its rows inside one task, so
+/// a value set once and left would be read by whichever row was polled next.
+///
+/// dspy layers `{**main_thread_config, **original_overrides, **kwargs}`. Replacing rather than
+/// merging is the same thing here, because this crate scopes exactly one setting — the model — so
+/// an inner scope overriding it leaves nothing of the outer one to inherit.
+pub(crate) struct Configuring;
 
-impl<F: Future> Future for Scoped<F> {
-    type Output = F::Output;
+impl crate::scoped::Ambience for Configuring {
+    type State = Configured;
 
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        context: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<F::Output> {
-        let scoped = self.get_mut();
-        // dspy layers: `{**main_thread_config, **original_overrides, **kwargs}`. Replacing rather
-        // than merging is the same thing here, because this crate scopes exactly one setting — the
-        // model — so an inner scope overriding it leaves nothing of the outer one to inherit.
-        let entered = Entered(SCOPED.with(|slot| {
-            slot.borrow_mut().replace(Configured {
-                http: scoped.configured.http.clone(),
-                lm: Arc::clone(&scoped.configured.lm),
-            })
-        }));
-        let polled = scoped.inner.as_mut().poll(context);
-        drop(entered);
-        polled
-    }
-}
-
-/// Restores the enclosing scope even when polling unwinds.
-struct Entered(Option<Configured>);
-
-impl Drop for Entered {
-    fn drop(&mut self) {
-        SCOPED.with(|slot| *slot.borrow_mut() = self.0.take());
+    fn exchange(held: &mut Option<Configured>) {
+        SCOPED.with_borrow_mut(|installed| std::mem::swap(installed, held));
     }
 }
 

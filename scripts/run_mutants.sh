@@ -239,7 +239,9 @@ slice_files() {
     optimize) printf '%s\n' \
       'crates/dsrust/src/optimize/**/*.rs' \
       crates/dsrust/src/optimize.rs ;;
-    module) printf '%s\n' crates/dsrust/src/module/ambient.rs ;;
+    module) printf '%s\n' \
+      crates/dsrust/src/module/ambient.rs \
+      crates/dsrust/src/scoped.rs ;;
   esac
 }
 

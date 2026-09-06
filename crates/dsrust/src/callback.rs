@@ -293,42 +293,24 @@ pub struct Watching {
 impl Watching {
     /// Run `work` with the extra watcher listening.
     pub async fn run<T>(self, work: impl Future<Output = T>) -> T {
-        Watched {
-            extra: self.extra,
-            inner: Box::pin(work),
-        }
-        .await
+        crate::scoped::Scoped::<Listening, _>::new(self.extra, work).await
     }
 }
 
-struct Watched<F> {
-    extra: Arc<dyn Callback>,
-    inner: std::pin::Pin<Box<F>>,
-}
+/// One extra watcher, listening for as long as the future holding it is polled or destroyed.
+///
+/// A stack rather than a slot, because watchers nest: an inner scope adds to the outer one's
+/// listeners rather than replacing them. Pushing on entry and popping on exit is the exchange the
+/// other scopes make with a swap.
+pub(crate) struct Listening;
 
-impl<F: Future> Future for Watched<F> {
-    type Output = F::Output;
+impl crate::scoped::Ambience for Listening {
+    type State = Arc<dyn Callback>;
 
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        context: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<F::Output> {
-        let watched = self.get_mut();
-        SCOPED.with(|scoped| scoped.borrow_mut().push(Arc::clone(&watched.extra)));
-        let entered = ScopedCallback;
-        let answered = watched.inner.as_mut().poll(context);
-        drop(entered);
-        answered
-    }
-}
-
-/// Removes the poll-scoped callback even if the wrapped future panics.
-struct ScopedCallback;
-
-impl Drop for ScopedCallback {
-    fn drop(&mut self) {
-        SCOPED.with(|scoped| {
-            scoped.borrow_mut().pop();
+    fn exchange(held: &mut Option<Arc<dyn Callback>>) {
+        SCOPED.with_borrow_mut(|listening| match held.take() {
+            Some(watcher) => listening.push(watcher),
+            None => *held = listening.pop(),
         });
     }
 }

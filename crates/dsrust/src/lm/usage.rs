@@ -94,41 +94,18 @@ impl UsageScope {
     }
 
     pub async fn run<T>(&self, work: impl Future<Output = T>) -> T {
-        ScopedUsage {
-            tracker: Arc::clone(&self.tracker),
-            inner: Box::pin(work),
-        }
-        .await
+        crate::scoped::Scoped::<Charging, _>::new(Arc::clone(&self.tracker), work).await
     }
 }
 
-struct ScopedUsage<F> {
-    tracker: Arc<UsageTracker>,
-    inner: std::pin::Pin<Box<F>>,
-}
+/// The tracker a call is charged to, for as long as the future owning it is polled or destroyed.
+pub(crate) struct Charging;
 
-impl<F: Future> Future for ScopedUsage<F> {
-    type Output = F::Output;
+impl crate::scoped::Ambience for Charging {
+    type State = Arc<UsageTracker>;
 
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        context: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        let scoped = self.get_mut();
-        let entered = EnteredUsage(
-            SCOPED.with(|slot| slot.borrow_mut().replace(Arc::clone(&scoped.tracker))),
-        );
-        let polled = scoped.inner.as_mut().poll(context);
-        drop(entered);
-        polled
-    }
-}
-
-struct EnteredUsage(Option<Arc<UsageTracker>>);
-
-impl Drop for EnteredUsage {
-    fn drop(&mut self) {
-        SCOPED.with(|slot| *slot.borrow_mut() = self.0.take());
+    fn exchange(held: &mut Option<Arc<UsageTracker>>) {
+        SCOPED.with_borrow_mut(|installed| std::mem::swap(installed, held));
     }
 }
 
@@ -337,5 +314,43 @@ mod scoped_tests {
         assert_eq!(second.total(), LmUsage::counted(28, 32));
         assert_eq!(first.tracker().by_model().len(), 1);
         assert_eq!(second.tracker().by_model().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod destruction_scope {
+    use super::*;
+
+    struct ChargeOnDrop;
+    impl Future for ChargeOnDrop {
+        type Output = ();
+        fn poll(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<()> {
+            std::task::Poll::Ready(())
+        }
+    }
+    impl Drop for ChargeOnDrop {
+        fn drop(&mut self) {
+            record("m", Some(LmUsage::counted(9, 9)));
+        }
+    }
+
+    #[tokio::test]
+    async fn a_future_charging_as_it_is_destroyed_bills_its_own_scope() {
+        let outer = scoped();
+        let inner = scoped();
+        outer
+            .run(async {
+                inner.run(ChargeOnDrop).await;
+            })
+            .await;
+        assert_eq!(
+            inner.total().input_tokens,
+            Some(9),
+            "the inner scope was billed"
+        );
+        assert_eq!(outer.total().input_tokens, None, "the outer scope was not");
     }
 }

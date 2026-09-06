@@ -18,10 +18,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use super::TraceStep;
 
@@ -63,64 +60,12 @@ pub(crate) fn record(identity: usize, mut step: TraceStep) {
     });
 }
 
-/// The context installed for exactly as long as one `poll`, and whatever it displaced.
-///
-/// A guard rather than a pair of calls so an unwind puts the outer run's context back: a panic in
-/// one predictor must not leave the next run recording into a dead trace.
-struct TraceGuard<'a> {
-    suspended_context: &'a mut Option<TraceContext>,
-}
+/// Where a run's trace lives while it is the one being polled.
+impl crate::scoped::Ambience for TraceContext {
+    type State = TraceContext;
 
-impl<'a> TraceGuard<'a> {
-    fn enter(context: &'a mut Option<TraceContext>) -> Self {
-        ACTIVE_TRACE.with_borrow_mut(|active| std::mem::swap(active, context));
-        Self {
-            suspended_context: context,
-        }
-    }
-}
-
-impl Drop for TraceGuard<'_> {
-    fn drop(&mut self) {
-        ACTIVE_TRACE.with_borrow_mut(|active| std::mem::swap(active, self.suspended_context));
-    }
-}
-
-/// `work`, with its context installed across each poll — and across the destruction of the
-/// future, which is why the future is held in an `Option` rather than inline.
-struct Recording<F> {
-    context: Option<TraceContext>,
-    future: Option<Pin<Box<F>>>,
-}
-
-impl<F: Future> Future for Recording<F> {
-    type Output = F::Output;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<F::Output> {
-        let recording = self.get_mut();
-        let _guard = TraceGuard::enter(&mut recording.context);
-        let result = recording
-            .future
-            .as_mut()
-            .expect("recording polled after completion")
-            .as_mut()
-            .poll(cx);
-        // Dropped here, inside the guard, rather than left for the caller: a future that records
-        // as it unwinds — a predictor charging a cancelled call — would otherwise attribute that
-        // step to whatever trace is ambient once this one has been taken down.
-        if result.is_ready() {
-            drop(recording.future.take());
-        }
-        result
-    }
-}
-
-/// The same rule for a run that never completed. A cancelled future's cleanup belongs to the
-/// trace it was cancelled inside, not to whichever run happens to be polling when it is dropped.
-impl<F> Drop for Recording<F> {
-    fn drop(&mut self) {
-        let _guard = TraceGuard::enter(&mut self.context);
-        drop(self.future.take());
+    fn exchange(held: &mut Option<TraceContext>) {
+        ACTIVE_TRACE.with_borrow_mut(|active| std::mem::swap(active, held));
     }
 }
 
@@ -129,19 +74,18 @@ pub(crate) async fn recording<T>(
     names: &Arc<HashMap<usize, String>>,
     work: impl Future<Output = T>,
 ) -> (T, Vec<TraceStep>) {
-    let mut recording = Recording {
-        context: Some(TraceContext {
+    let mut recording = crate::scoped::Scoped::<TraceContext, _>::new(
+        TraceContext {
             steps: Vec::new(),
             predictor_names: Arc::clone(names),
-        }),
-        future: Some(Box::pin(work)),
-    };
+        },
+        work,
+    );
     let output = (&mut recording).await;
-    let TraceContext { steps, .. } = recording
-        .context
+    let recorded = recording
         .take()
-        .expect("trace context restored after polling");
-    (output, steps)
+        .expect("the trace comes back when the run ends");
+    (output, recorded.steps)
 }
 
 #[cfg(test)]
