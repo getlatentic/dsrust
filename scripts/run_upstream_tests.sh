@@ -147,6 +147,7 @@ python3 "$ROOT/scripts/check_doc_citations.py"
 python3 "$ROOT/scripts/check_pinned_all.py"
 # And the same question from the *user's* side. The two above are bounded by PORTED_MODULES, so a
 # name reachable as `dspy.X` from a module outside it was answered by neither.
+python3 -m unittest discover -s "$ROOT/scripts" -p 'test_top_level.py'
 python3 "$ROOT/scripts/check_top_level.py"
 # Reports rather than gates: which ported modules moved on main, so a porter knows what is a moving
 # target before building it. Never fails — main is someone else's branch.
