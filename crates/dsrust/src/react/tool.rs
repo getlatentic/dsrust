@@ -4,14 +4,13 @@
 //! tool is a trait, so its name, description and argument schema are declared rather than
 //! derived, and the compiler checks the implementation.
 
-use std::future::Future;
-use std::pin::Pin;
-
 use anyhow::{Result, anyhow};
 use serde::Serialize;
 use serde_json::{Value, json};
+use std::future::Future;
 
 use super::tool_call::observation_text;
+use crate::wasm_compat::{WasmBoxFuture, WasmCompatSend};
 
 /// Something the agent can call. dspy derives these from a callable's signature; declaring
 /// them keeps the argument contract visible to both the model and the compiler.
@@ -50,10 +49,7 @@ pub trait Tool: Send + Sync {
     /// which is upstream's own "allow calling a sync tool in the async path".
     ///
     /// Boxed rather than an `async fn`, because the agents hold `dyn Tool`.
-    fn acall_value<'a>(
-        &'a self,
-        args: &'a Value,
-    ) -> Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>> {
+    fn acall_value<'a>(&'a self, args: &'a Value) -> WasmBoxFuture<'a, Result<Value>> {
         Box::pin(async move { self.call_value(args) })
     }
 }
@@ -147,7 +143,7 @@ pub struct AsyncFnTool<F> {
 impl<F, Answering, V> AsyncFnTool<F>
 where
     F: Fn(Value) -> Answering + Send + Sync,
-    Answering: Future<Output = Result<V>> + Send,
+    Answering: Future<Output = Result<V>> + WasmCompatSend,
     V: Serialize,
 {
     pub fn new(
@@ -168,7 +164,7 @@ where
 impl<F, Answering, V> Tool for AsyncFnTool<F>
 where
     F: Fn(Value) -> Answering + Send + Sync,
-    Answering: Future<Output = Result<V>> + Send,
+    Answering: Future<Output = Result<V>> + WasmCompatSend,
     V: Serialize,
 {
     fn name(&self) -> &str {
@@ -191,10 +187,7 @@ where
         ))
     }
 
-    fn acall_value<'a>(
-        &'a self,
-        args: &'a Value,
-    ) -> Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>> {
+    fn acall_value<'a>(&'a self, args: &'a Value) -> WasmBoxFuture<'a, Result<Value>> {
         Box::pin(async move {
             (self.call)(args.clone())
                 .await

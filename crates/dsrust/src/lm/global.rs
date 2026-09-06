@@ -2,7 +2,9 @@
 //! modules in [`mod@crate::predict`] resolve it at call time, so call sites stop threading an
 //! HTTP client and model through every layer. Reconfigurable, so a later configure wins.
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+#[cfg(feature = "process-global")]
+use std::sync::RwLock;
 
 use anyhow::{Result, anyhow};
 
@@ -15,6 +17,7 @@ struct Configured {
     lm: Arc<dyn DynChatModel>,
 }
 
+#[cfg(feature = "process-global")]
 static GLOBAL: RwLock<Option<Configured>> = RwLock::new(None);
 
 thread_local! {
@@ -27,11 +30,13 @@ thread_local! {
 }
 
 /// Make `lm` the process-wide default, with a client of its own.
+#[cfg(feature = "process-global")]
 pub fn configure(lm: LM) {
     configure_with_client(reqwest::Client::new(), lm);
 }
 
 /// Make `lm` the process-wide default, sending its provider calls on `http`.
+#[cfg(feature = "process-global")]
 pub fn configure_with_client(http: reqwest::Client, lm: LM) {
     configure_model(http, Arc::new(lm));
 }
@@ -39,6 +44,7 @@ pub fn configure_with_client(http: reqwest::Client, lm: LM) {
 /// Install any model as the process-wide default, including a scripted one. dspy's `DummyLM`
 /// exists for the same reason: a module reaches its model through the global, so without this
 /// nothing built on `Module` could be tested without a provider.
+#[cfg(feature = "process-global")]
 pub fn configure_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) {
     *GLOBAL.write().expect("lock not poisoned") = Some(Configured { http, lm });
 }
@@ -53,7 +59,7 @@ pub fn configure_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) {
 ///
 /// Hold the returned guard for as long as the test uses the model, which means binding it:
 /// `let _configured = install_for_test(...)` and not `let _ = ...`, which drops it at once.
-#[cfg(test)]
+#[cfg(all(test, feature = "process-global"))]
 /// Installs `lm` as the process-wide default and returns the token that keeps other installing
 /// tests out until it drops.
 ///
@@ -92,12 +98,19 @@ pub(crate) fn current() -> Result<Arc<dyn DynChatModel>> {
     }) {
         return Ok(scoped);
     }
-    GLOBAL
-        .read()
-        .expect("lock not poisoned")
-        .as_ref()
-        .map(|configured| Arc::clone(&configured.lm))
-        .ok_or_else(|| anyhow!("no global LM; call lm::configure(...) first"))
+    #[cfg(feature = "process-global")]
+    {
+        return GLOBAL
+            .read()
+            .expect("lock not poisoned")
+            .as_ref()
+            .map(|configured| Arc::clone(&configured.lm))
+            .ok_or_else(|| anyhow!("no global LM; call lm::configure(...) first"));
+    }
+    #[cfg(not(feature = "process-global"))]
+    Err(anyhow!(
+        "no scoped LM; inject one with set_lm(...) or lm::context(...).run(...)"
+    ))
 }
 
 /// The configured HTTP client, or a fresh one.
@@ -115,12 +128,17 @@ pub(crate) fn client() -> reqwest::Client {
     }) {
         return scoped;
     }
-    GLOBAL
-        .read()
-        .expect("lock not poisoned")
-        .as_ref()
-        .map(|configured| configured.http.clone())
-        .unwrap_or_default()
+    #[cfg(feature = "process-global")]
+    {
+        return GLOBAL
+            .read()
+            .expect("lock not poisoned")
+            .as_ref()
+            .map(|configured| configured.http.clone())
+            .unwrap_or_default();
+    }
+    #[cfg(not(feature = "process-global"))]
+    reqwest::Client::new()
 }
 
 /// dspy `dspy.context(lm=...)`: ask this model for the duration of one piece of work, then go back.
@@ -222,14 +240,55 @@ impl<F: Future> Future for Scoped<F> {
         // dspy layers: `{**main_thread_config, **original_overrides, **kwargs}`. Replacing rather
         // than merging is the same thing here, because this crate scopes exactly one setting — the
         // model — so an inner scope overriding it leaves nothing of the outer one to inherit.
-        let restore = SCOPED.with(|slot| {
+        let entered = Entered(SCOPED.with(|slot| {
             slot.borrow_mut().replace(Configured {
                 http: scoped.configured.http.clone(),
                 lm: Arc::clone(&scoped.configured.lm),
             })
-        });
+        }));
         let polled = scoped.inner.as_mut().poll(context);
-        SCOPED.with(|slot| *slot.borrow_mut() = restore);
+        drop(entered);
         polled
+    }
+}
+
+/// Restores the enclosing scope even when polling unwinds.
+struct Entered(Option<Configured>);
+
+impl Drop for Entered {
+    fn drop(&mut self) {
+        SCOPED.with(|slot| *slot.borrow_mut() = self.0.take());
+    }
+}
+
+#[cfg(test)]
+mod scoped_tests {
+    use super::*;
+    use crate::{DummyLM, example};
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn interleaved_scopes_never_observe_the_other_model() {
+        let first = Arc::new(DummyLM::new([example! { answer: "first" }])) as Arc<dyn DynChatModel>;
+        let second =
+            Arc::new(DummyLM::new([example! { answer: "second" }])) as Arc<dyn DynChatModel>;
+
+        let first_run = context_model(reqwest::Client::new(), Arc::clone(&first)).run(async {
+            assert!(Arc::ptr_eq(&current().expect("first model"), &first));
+            tokio::task::yield_now().await;
+            assert!(Arc::ptr_eq(
+                &current().expect("first model restored"),
+                &first
+            ));
+        });
+        let second_run = context_model(reqwest::Client::new(), Arc::clone(&second)).run(async {
+            assert!(Arc::ptr_eq(&current().expect("second model"), &second));
+            tokio::task::yield_now().await;
+            assert!(Arc::ptr_eq(
+                &current().expect("second model restored"),
+                &second
+            ));
+        });
+
+        tokio::join!(first_run, second_run);
     }
 }

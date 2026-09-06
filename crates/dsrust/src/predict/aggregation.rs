@@ -13,8 +13,8 @@ use anyhow::{Result, anyhow};
 
 // The definition lives with dspy's, in `evaluate/metrics.py`; re-exported here because
 // `majority` normalises before it counts, and callers reached it by this path first.
-pub use crate::evaluate::metrics::normalize_text;
 use crate::example::Example;
+pub use crate::normalize::normalize_text;
 
 /// How a value is compared with another before the votes are counted.
 ///

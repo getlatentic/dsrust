@@ -9,7 +9,6 @@
 
 use std::collections::VecDeque;
 use std::future::Future;
-use std::pin::Pin;
 
 use anyhow::{Result, anyhow};
 use bytes::Bytes;
@@ -17,6 +16,7 @@ use futures_util::{Stream, StreamExt, stream};
 
 use crate::lm::LmUsage;
 use crate::lm::api::{LmResponse, LmStreamEvent};
+use crate::wasm_compat::{WasmBoxFuture, WasmBoxStream, WasmCompatSend};
 
 /// What one frame of the wire contributes.
 pub(super) struct Framed {
@@ -73,8 +73,8 @@ pub(super) struct Framing {
     pub frame: fn(&str, &mut StreamState) -> Framed,
 }
 
-type Connect = Pin<Box<dyn Future<Output = reqwest::Result<reqwest::Response>> + Send + 'static>>;
-type Bytes_ = Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send + 'static>>;
+type Connect = WasmBoxFuture<'static, reqwest::Result<reqwest::Response>>;
+type Bytes_ = WasmBoxStream<'static, reqwest::Result<Bytes>>;
 
 /// Where the stream is: waiting on the response, reading its body, or finished.
 enum Phase {
@@ -100,11 +100,11 @@ struct Live {
 /// `connect` is the request future rather than a live response, so the connection is part of the
 /// stream — the first poll opens it — and the whole thing borrows only what the future does.
 pub(super) fn events(
-    connect: impl Future<Output = reqwest::Result<reqwest::Response>> + Send + 'static,
+    connect: impl Future<Output = reqwest::Result<reqwest::Response>> + WasmCompatSend + 'static,
     label: String,
     model: String,
     framing: Framing,
-) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'static {
+) -> impl Stream<Item = Result<LmStreamEvent>> + WasmCompatSend + 'static {
     let live = Live {
         phase: Phase::Connecting(Box::pin(connect)),
         label,

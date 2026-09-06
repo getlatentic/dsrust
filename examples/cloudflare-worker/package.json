@@ -1,0 +1,13 @@
+{
+  "name": "dsrust-cloudflare-worker",
+  "private": true,
+  "scripts": {
+    "build": "worker-build --profile worker",
+    "dev": "wrangler dev --local",
+    "check:size": "node scripts/check-size.mjs",
+    "test:local": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.129.0"
+  }
+}

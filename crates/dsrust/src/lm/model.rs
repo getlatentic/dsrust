@@ -10,6 +10,7 @@ use anyhow::Result;
 use futures_util::{Stream, StreamExt};
 
 use super::{Capabilities, api};
+use crate::wasm_compat::{WasmBoxFuture, WasmBoxStream, WasmCompatSend};
 
 /// The events a model that cannot stream reports: the answer, whole, as one delta.
 ///
@@ -46,7 +47,7 @@ pub trait DynChatModel: Send + Sync {
     fn forward_dyn<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
+    ) -> WasmBoxFuture<'a, Result<api::LmResponse>>;
 
     /// The object-safe form of [`ChatModel::forward_stream`] — the events of one call behind a
     /// pointer, which is what lets a listener watch a model it only holds as `dyn`.
@@ -57,7 +58,7 @@ pub trait DynChatModel: Send + Sync {
     fn forward_stream_dyn<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
+    ) -> WasmBoxStream<'a, Result<api::LmStreamEvent>> {
         Box::pin(
             futures_util::stream::once(self.forward_dyn(request))
                 .flat_map(|answered| futures_util::stream::iter(one_shot(answered))),
@@ -65,8 +66,7 @@ pub trait DynChatModel: Send + Sync {
     }
 
     /// The object-safe form of [`ChatModel::capabilities`].
-    fn capabilities_dyn(&self)
-    -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + '_>>;
+    fn capabilities_dyn(&self) -> WasmBoxFuture<'_, Capabilities>;
 
     /// The object-safe form of [`ChatModel::native_reasoning_usable`] — the `_dyn` name keeps it from
     /// clashing with the inherent one on a model that implements both.
@@ -101,7 +101,7 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     fn forward_dyn<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
+    ) -> WasmBoxFuture<'a, Result<api::LmResponse>> {
         Box::pin(async move {
             let watch = crate::observe::lm_shown(request, self.callbacks());
             crate::observe::watching(watch, self.forward(request)).await
@@ -111,13 +111,11 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     fn forward_stream_dyn<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
+    ) -> WasmBoxStream<'a, Result<api::LmStreamEvent>> {
         Box::pin(self.forward_stream(request))
     }
 
-    fn capabilities_dyn(
-        &self,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + '_>> {
+    fn capabilities_dyn(&self) -> WasmBoxFuture<'_, Capabilities> {
         Box::pin(self.capabilities())
     }
 
@@ -147,7 +145,7 @@ pub trait ChatModel {
     fn forward<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
+    ) -> impl Future<Output = Result<api::LmResponse>> + WasmCompatSend + 'a;
 
     /// The same call, as the events arrive — dspy's `stream=True`.
     ///
@@ -161,7 +159,7 @@ pub trait ChatModel {
     fn forward_stream<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'a {
+    ) -> impl Stream<Item = Result<api::LmStreamEvent>> + WasmCompatSend + 'a {
         futures_util::stream::once(self.forward(request))
             .flat_map(|answered| futures_util::stream::iter(one_shot(answered)))
     }
@@ -197,7 +195,7 @@ pub trait ChatModel {
     fn call(
         &self,
         items: impl IntoIterator<Item = impl Into<api::LmItem>>,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send
+    ) -> impl Future<Output = Result<api::LmResponse>> + WasmCompatSend
     where
         Self: Sized + Send + Sync,
     {
@@ -244,7 +242,7 @@ pub trait ChatModel {
     ///
     /// Asynchronous because the honest answer is not always a lookup: an ollama server is asked
     /// what a model can do, exactly as litellm asks it, and that is a request like any other.
-    fn capabilities(&self) -> impl Future<Output = Capabilities> + Send {
+    fn capabilities(&self) -> impl Future<Output = Capabilities> + WasmCompatSend {
         std::future::ready(Capabilities::default())
     }
 

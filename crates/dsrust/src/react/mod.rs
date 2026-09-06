@@ -270,7 +270,7 @@ impl Module for ReAct {
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(async move {
             let span = crate::observe::module_shown("ReAct", &inputs, self.callbacks());
             let mut discarded = Vec::new();
@@ -282,7 +282,7 @@ impl Module for ReAct {
         &'a self,
         inputs: Example,
         trace: &'a mut Vec<TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(self.run(inputs, trace))
     }
 

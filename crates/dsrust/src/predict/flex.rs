@@ -218,7 +218,7 @@ impl Module for Flex {
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(async move {
             let class_name = class_name_of(&self.module_src)?;
             let answered = bridge::run(

@@ -18,13 +18,17 @@
 //! one anyway.
 
 use std::num::NonZeroUsize;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
+#[cfg(feature = "process-global")]
+use std::sync::OnceLock;
 
 use anyhow::Result;
 use lru::LruCache;
 
+#[cfg(feature = "native")]
 pub mod disk;
 
+#[cfg(feature = "native")]
 pub use disk::DiskCache;
 
 use super::ChatModel;
@@ -40,6 +44,7 @@ const MAX_ENTRIES: usize = 1_000_000;
 /// so the next read of it is quick. The disk half is what makes re-running a compile cheap.
 pub struct ResponseCache {
     entries: Mutex<LruCache<String, LmResponse>>,
+    #[cfg(feature = "native")]
     disk: Option<DiskCache>,
 }
 
@@ -49,11 +54,13 @@ impl ResponseCache {
     pub fn new(max_entries: NonZeroUsize) -> Self {
         Self {
             entries: Mutex::new(LruCache::new(max_entries)),
+            #[cfg(feature = "native")]
             disk: None,
         }
     }
 
     /// The same, also writing through to a directory that outlives the process.
+    #[cfg(feature = "native")]
     pub fn enable_disk_cache(mut self, disk: DiskCache) -> Self {
         self.disk = Some(disk);
         self
@@ -75,6 +82,7 @@ impl ResponseCache {
     }
 
     /// A reply an earlier run paid for, brought back into memory so the next read is quick.
+    #[cfg(feature = "native")]
     fn recovered(&self, key: &str) -> Option<LmResponse> {
         let found = self.disk.as_ref()?.get(key)?;
         self.entries
@@ -84,8 +92,14 @@ impl ResponseCache {
         Some(found)
     }
 
+    #[cfg(not(feature = "native"))]
+    fn recovered(&self, _key: &str) -> Option<LmResponse> {
+        None
+    }
+
     /// Keep this reply against the request that produced it.
     pub fn keep(&self, key: String, response: LmResponse) {
+        #[cfg(feature = "native")]
         if let Some(disk) = &self.disk {
             disk.put(&key, &response);
         }
@@ -105,6 +119,7 @@ impl ResponseCache {
     }
 
     /// The directory this writes through to, if it has one.
+    #[cfg(feature = "native")]
     pub fn disk(&self) -> Option<&DiskCache> {
         self.disk.as_ref()
     }
@@ -113,6 +128,7 @@ impl ResponseCache {
     /// again.
     pub fn clear(&self) {
         self.entries.lock().expect("not poisoned").clear();
+        #[cfg(feature = "native")]
         if let Some(disk) = &self.disk {
             disk.clear();
         }
@@ -127,6 +143,7 @@ impl Default for ResponseCache {
     }
 }
 
+#[cfg(feature = "process-global")]
 static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 
 /// dspy `Cache.cache_key`: the request, hashed.
@@ -209,10 +226,14 @@ fn canonical(value: &serde_json::Value) -> String {
 /// program constructing one per call ends up with — answer each other's repeated requests. Backed by
 /// disk as well as memory when there is a directory to use, which is upstream's default and what
 /// makes a repeated compile cheap.
+#[cfg(feature = "process-global")]
 pub fn shared() -> &'static ResponseCache {
-    SHARED.get_or_init(|| match DiskCache::from_env() {
-        Some(disk) => ResponseCache::default().enable_disk_cache(disk),
-        None => ResponseCache::default(),
+    SHARED.get_or_init(|| {
+        #[cfg(feature = "native")]
+        if let Some(disk) = DiskCache::from_env() {
+            return ResponseCache::default().enable_disk_cache(disk);
+        }
+        ResponseCache::default()
     })
 }
 
@@ -269,7 +290,9 @@ impl<M: ChatModel + Send + Sync> ChatModel for Cached<M> {
         Ok(answered)
     }
 
-    fn capabilities(&self) -> impl Future<Output = crate::lm::Capabilities> + Send {
+    fn capabilities(
+        &self,
+    ) -> impl Future<Output = crate::lm::Capabilities> + crate::wasm_compat::WasmCompatSend {
         self.inner.capabilities()
     }
 
@@ -444,5 +467,19 @@ mod tests {
         assert!(replayed.cache_hit);
         assert_eq!(replayed.usage, Some(usage), "what it was worth is readable");
         assert_eq!(replayed.spend(), None, "and it is not charged again");
+    }
+
+    #[test]
+    fn explicitly_owned_caches_never_share_entries() {
+        let first = Cached::new(DummyLM::new([]).fallback(example! { answer: "first" }));
+        let second = Cached::new(DummyLM::new([]).fallback(example! { answer: "second" }));
+
+        let first_answer = ask(&first, Sampling::default());
+        let second_answer = ask(&second, Sampling::default());
+
+        assert!(first_answer.first_text().contains("first"));
+        assert!(second_answer.first_text().contains("second"));
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
     }
 }

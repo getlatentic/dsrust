@@ -24,7 +24,7 @@ pub(crate) fn stream(
     api_key: Option<&str>,
     timeout: Duration,
     call: &api::LmRequest,
-) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<> {
+) -> impl Stream<Item = Result<api::LmStreamEvent>> + crate::wasm_compat::WasmCompatSend + use<> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let mut request = http

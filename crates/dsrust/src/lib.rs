@@ -6,6 +6,20 @@
 // paths valid when the derive is used inside this crate itself.
 extern crate self as dsrust;
 
+#[cfg(all(target_arch = "wasm32", target_os = "unknown", feature = "native"))]
+compile_error!(
+    "dsrust's `native` feature is unavailable on wasm32-unknown-unknown; build Cloudflare Workers with `default-features = false, features = [\"inference\"]`"
+);
+
+#[cfg(all(
+    target_arch = "wasm32",
+    target_os = "unknown",
+    feature = "process-global"
+))]
+compile_error!(
+    "dsrust's `process-global` feature is unavailable on wasm32-unknown-unknown; inject models, callbacks, usage scopes, and caches per Worker request"
+);
+
 /// The HTTP client this crate uses, re-exported for the two places its type is still named.
 ///
 /// [`ChatModel`] no longer mentions it — implementing a provider of your own needs nothing from
@@ -52,22 +66,29 @@ pub use anyhow;
 pub mod adapter;
 pub mod callback;
 mod error;
+#[cfg(feature = "native")]
 pub mod evaluate;
 pub mod example;
 pub mod hasher;
+#[cfg(feature = "native")]
 pub mod interpreter;
 pub mod lm;
 mod mimetypes;
 pub mod module;
+mod normalize;
+#[cfg(feature = "native")]
 pub mod numpy;
 pub mod observe;
+#[cfg(feature = "native")]
 pub mod optimize;
 pub mod predict;
 pub mod python;
 pub mod react;
 mod resource;
+#[cfg(feature = "native")]
 pub mod retrievers;
 pub mod signature;
+pub mod wasm_compat;
 
 pub use adapter::baml::BamlAdapter;
 pub use adapter::xml::XmlAdapter;
@@ -79,50 +100,63 @@ pub use adapter::{
     Audio, Citation, Citations, Code, Document, File, Formatted, History, Image, MediaType,
     ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type,
 };
-pub use callback::{CallId, Callback, Rendered, configure_callbacks};
+#[cfg(feature = "process-global")]
+pub use callback::configure_callbacks;
+pub use callback::{CallId, Callback, Rendered};
 pub use dsrust_derive::Module;
+#[cfg(feature = "native")]
 pub use evaluate::{Evaluate, Evaluation, Pass, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
 pub use hasher::Hasher;
 pub use lm::Capabilities;
+#[cfg(feature = "native")]
 pub use lm::dummy_vectorizer::DummyVectorizer;
 pub use lm::embedding::{EmbedCall, Embedder, EmbedderModel};
 pub use module::{
     Ask, FailedPrediction, Forward, Module, NamedPredictor, PredictorState, ProgramState,
     StepOutputs, TraceStep, Typed,
 };
+#[cfg(feature = "native")]
 pub use optimize::knn_fewshot::{KnnFewShot, KnnFewShotProgram};
+#[cfg(feature = "native")]
 pub use optimize::{
     Attempt, BootstrapFewShot, BootstrapRandomSearch, COPRO, DynOptimizer, Ensemble, Ensembled,
     Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2, MetricContext, Optimizer,
 };
+#[cfg(feature = "native")]
 pub use predict::knn::Knn;
 pub use react::{
     AsyncFnTool, FnTool, McpResultMode, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args,
     mcp_tool_in, mcp_tool_result, mcp_tool_result_in, typed_tool,
 };
+#[cfg(feature = "native")]
 pub use retrievers::{Embeddings, EmbeddingsWithScores, Retrieved};
 
 /// Items the macros expand into so a caller does not have to depend on them directly.
 #[doc(hidden)]
 #[path = "macro_support.rs"]
 pub mod __macro_support;
+#[cfg(feature = "native")]
 pub use interpreter::{
     CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable, SandboxSerializable,
     build_repl_variable,
 };
 pub use lm::dummy::DummyLM;
-pub use lm::global::{Scope, configure_model, context, context_model, context_with_client};
+#[cfg(feature = "process-global")]
+pub use lm::global::configure_model;
+pub use lm::global::{Scope, context, context_model, context_with_client};
 pub use lm::{
     Assistant, ChatModel, ChatTurn, DEFAULT_PROVIDER_TIMEOUT, Developer, LM, LmItem, LmMessage,
-    LmPart, LmRequest, LmResponse, ModelRef, OutputMode, Provider, Role, System, User, configure,
-    configure_with_client,
+    LmPart, LmRequest, LmResponse, ModelRef, OutputMode, Provider, Role, System, User,
 };
+#[cfg(feature = "process-global")]
+pub use lm::{configure, configure_with_client};
+#[cfg(feature = "native")]
 #[allow(deprecated)]
 pub use predict::{
-    Answered, BestOfN, ChainOfThought, CodeAct, MultiChainComparison, Parallel, Predict,
-    ProgramOfThought, Refine, Rlm, Steering, TypedChainOfThought, TypedPredict,
+    Answered, BestOfN, CodeAct, MultiChainComparison, Parallel, ProgramOfThought, Refine, Rlm,
 };
+pub use predict::{ChainOfThought, Predict, Steering, TypedChainOfThought, TypedPredict};
 pub use signature::{
     ChainOfThought, FieldEdit, FieldKind, InField, LiteralValue, OutField, Predict, Side,
     Signature, SignatureSpec, json_field_schema, make_signature, tool,

@@ -63,10 +63,22 @@ pub(crate) async fn fetch_base64(
     verify: bool,
     timeout: Option<std::time::Duration>,
 ) -> anyhow::Result<(Option<String>, String)> {
-    let mut client = reqwest::Client::builder().danger_accept_invalid_certs(!verify);
+    #[allow(unused_mut)]
+    let mut client = reqwest::Client::builder();
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    {
+        client = client.danger_accept_invalid_certs(!verify);
+    }
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    if !verify {
+        anyhow::bail!("disabling TLS certificate verification is unavailable in WebAssembly");
+    }
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     if let Some(timeout) = timeout {
         client = client.timeout(timeout);
     }
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    let _ = timeout;
     let client = client.build()?;
     let response = client.get(url).send().await?.error_for_status()?;
     let content_type = response

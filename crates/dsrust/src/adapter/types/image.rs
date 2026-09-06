@@ -64,6 +64,7 @@ impl Image {
     /// caller's bytes, unmodified, under the media type upstream would have named — which is the
     /// part a provider reads as meaning. Identification is the only job PIL is really doing on this
     /// branch, and `image::guess_format` does it without decoding.
+    #[cfg(feature = "media")]
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> anyhow::Result<Self> {
         let bytes = bytes.as_ref();
         let Some(media_type) = sniffed(bytes) else {
@@ -92,6 +93,7 @@ impl Image {
     /// The bytes are the `image` crate's, not PIL's, and no two PNG encoders agree — filter choice
     /// and deflate settings are an encoder's own. What holds is that the pixels survive, which is
     /// the round trip asserted in the tests.
+    #[cfg(feature = "media")]
     pub fn from_rgb(width: u32, height: u32, pixels: &[u8]) -> anyhow::Result<Self> {
         Self::encoded(
             image::RgbImage::from_raw(width, height, pixels.to_vec()),
@@ -103,6 +105,7 @@ impl Image {
     }
 
     /// The same with an alpha channel: four bytes a pixel.
+    #[cfg(feature = "media")]
     pub fn from_rgba(width: u32, height: u32, pixels: &[u8]) -> anyhow::Result<Self> {
         Self::encoded(
             image::RgbaImage::from_raw(width, height, pixels.to_vec()),
@@ -118,6 +121,7 @@ impl Image {
     /// `from_raw` answers `None` for a length that does not match the dimensions, and that is the
     /// whole of the validation — a buffer half the size it claims would otherwise be encoded as an
     /// image of whatever it happened to contain.
+    #[cfg(feature = "media")]
     fn encoded<P, C>(
         buffer: Option<image::ImageBuffer<P, C>>,
         samples: usize,
@@ -237,6 +241,7 @@ fn is_url(source: &str) -> bool {
 /// The `image` crate rather than a hand-written signature table: it knows every format it can name
 /// rather than the six worth typing out, and identification is exactly the job PIL is doing on this
 /// path. Its answers are `image/{format}`, which is the shape `_encode_pil_image` builds too.
+#[cfg(feature = "media")]
 fn sniffed(bytes: &[u8]) -> Option<&'static str> {
     image::guess_format(bytes)
         .ok()

@@ -19,6 +19,14 @@ default-members = [
 [profile.release]
 strip = "none"
 
+[profile.worker]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
 # Full debug info dominates target/debug (25 GiB at its peak). Line tables keep
 # file/line in backtraces and panics, which is all this suite reads.
 [profile.dev]

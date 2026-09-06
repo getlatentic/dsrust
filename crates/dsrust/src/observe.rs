@@ -40,12 +40,18 @@ use crate::adapter::Input;
 use crate::callback::{self, CallId, Callback, Ends, Rendered, Under};
 use crate::example::Example;
 
+#[cfg(feature = "native")]
 mod compile;
+#[cfg(feature = "native")]
 mod evaluating;
+#[cfg(feature = "native")]
 mod interpreter;
 
+#[cfg(feature = "native")]
 pub use compile::{compiling, compiling_sync};
+#[cfg(feature = "native")]
 pub use evaluating::{evaluated_within, evaluating, scored};
+#[cfg(feature = "native")]
 pub use interpreter::{
     InterpreterLifecycle, executing, interpreter_lifecycle, interpreter_tool_call,
 };

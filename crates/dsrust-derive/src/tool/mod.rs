@@ -279,13 +279,12 @@ fn implementation(
             fn acall_value<'__a>(
                 &'__a self,
                 __args: &'__a ::dsrust::__macro_support::serde_json::Value,
-            ) -> ::std::pin::Pin<::std::boxed::Box<
-                dyn ::std::future::Future<
-                    Output = ::dsrust::__macro_support::anyhow::Result<
-                        ::dsrust::__macro_support::serde_json::Value,
-                    >,
-                > + ::std::marker::Send + '__a,
-            >> {
+            ) -> ::dsrust::wasm_compat::WasmBoxFuture<
+                '__a,
+                ::dsrust::__macro_support::anyhow::Result<
+                    ::dsrust::__macro_support::serde_json::Value,
+                >,
+            > {
                 ::std::boxed::Box::pin(async move {
                     let __answered: ::dsrust::__macro_support::anyhow::Result<_> = async {
                         #bindings

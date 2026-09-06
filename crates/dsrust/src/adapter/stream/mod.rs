@@ -271,9 +271,9 @@ pub(super) fn ends_with_prefix_of(text: &str, identifier: &str) -> bool {
 /// output. Non-text events pass silently; the field's tokens come out in order, on the model's own
 /// boundaries.
 pub fn stream_field<'a>(
-    events: impl Stream<Item = Result<LmStreamEvent>> + Send + 'a,
+    events: impl Stream<Item = Result<LmStreamEvent>> + crate::wasm_compat::WasmCompatSend + 'a,
     field: &str,
-) -> impl Stream<Item = Result<FieldChunk>> + Send + 'a {
+) -> impl Stream<Item = Result<FieldChunk>> + crate::wasm_compat::WasmCompatSend + 'a {
     let mut listener = FieldListener::new(field);
     events.filter_map(move |event| {
         let out = match event {

@@ -106,7 +106,9 @@ impl ChatModel for Tap {
         answered.ok_or_else(|| anyhow!("the model's stream ended without an answer"))
     }
 
-    fn capabilities(&self) -> impl Future<Output = crate::lm::Capabilities> + Send {
+    fn capabilities(
+        &self,
+    ) -> impl Future<Output = crate::lm::Capabilities> + crate::wasm_compat::WasmCompatSend {
         self.inner.capabilities_dyn()
     }
 

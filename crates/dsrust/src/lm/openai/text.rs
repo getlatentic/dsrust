@@ -177,7 +177,9 @@ pub(super) fn stream(
     model: String,
     body: Value,
     timeout: std::time::Duration,
-) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'static {
+) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>>
++ crate::wasm_compat::WasmCompatSend
++ 'static {
     let mut request = http.post(url).timeout(timeout).json(&body);
     if let Some(key) = key {
         request = request.bearer_auth(key);

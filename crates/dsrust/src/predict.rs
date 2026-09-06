@@ -76,38 +76,54 @@ struct Reply {
 }
 
 mod aggregation;
+#[cfg(feature = "native")]
 mod best_of_n;
 mod building;
 mod chain_of_thought;
+#[cfg(feature = "native")]
 pub mod code_act;
 mod completions;
 mod derived;
+#[cfg(feature = "native")]
 pub mod flex;
 mod hint;
+#[cfg(feature = "native")]
 pub mod knn;
+#[cfg(feature = "native")]
 mod multi_chain_comparison;
 mod native;
+#[cfg(feature = "native")]
 mod parallel;
+#[cfg(feature = "native")]
 pub mod program_of_thought;
 mod randomness;
 mod recovery;
+#[cfg(feature = "native")]
 pub mod refine;
+#[cfg(feature = "native")]
 pub mod rlm;
 mod shorthand;
 mod validate;
 pub use aggregation::{Normalize, majority, normalize_text};
+#[cfg(feature = "native")]
 pub use best_of_n::BestOfN;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
+#[cfg(feature = "native")]
 #[allow(deprecated)]
 pub use code_act::CodeAct;
 pub use derived::TypedPredict;
 use derived::typed;
+#[cfg(feature = "native")]
 pub use multi_chain_comparison::MultiChainComparison;
 use native::{ask_for_parallel_calls, force_tool};
+#[cfg(feature = "native")]
 pub use parallel::{Answered, Parallel};
+#[cfg(feature = "native")]
 #[allow(deprecated)]
 pub use program_of_thought::ProgramOfThought;
+#[cfg(feature = "native")]
 pub use refine::Refine;
+#[cfg(feature = "native")]
 pub use rlm::Rlm;
 use validate::Validated;
 
@@ -981,7 +997,7 @@ impl<S: Send + Sync> Module for Predict<S> {
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(async move {
             let span = crate::observe::module_shown("Predict", &inputs, self.callbacks());
             let prediction = crate::observe::watching(
@@ -1020,7 +1036,7 @@ impl<S: Send + Sync> Module for Predict<S> {
         &'a self,
         inputs: Example,
         trace: &'a mut Vec<TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(async move {
             // Under a run that is listening, the plain call below records this step ambiently
             // under the name the run resolved for this predictor, and that is the only record:

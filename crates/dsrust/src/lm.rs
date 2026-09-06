@@ -39,6 +39,7 @@ mod call;
 mod capabilities;
 mod dispatch;
 pub mod dummy;
+#[cfg(feature = "native")]
 pub mod dummy_vectorizer;
 pub mod embedding;
 mod error;
@@ -71,9 +72,9 @@ pub use cache::{Cached, ResponseCache};
 pub use call::{LmUsage, Sampling};
 pub use capabilities::Capabilities;
 pub use error::{ContextWindowExceeded, LmErrorKind, LmFailure};
-pub use global::{
-    Scope, configure, configure_with_client, context, context_model, context_with_client,
-};
+pub use global::{Scope, context, context_model, context_with_client};
+#[cfg(feature = "process-global")]
+pub use global::{configure, configure_with_client};
 pub use model::{ChatModel, DynChatModel};
 pub use openai::{
     DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig, OpenAiWire,
@@ -83,7 +84,9 @@ pub use routing::{ModelRef, Provider};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub(crate) use turn::messages_of;
 pub use turn::{ChatTurn, OutputMode, Role};
-pub use usage::{Tracking, UsageTracker, track as track_usage};
+#[cfg(feature = "process-global")]
+pub use usage::{Tracking, track as track_usage};
+pub use usage::{UsageScope, UsageTracker, scoped as scoped_usage};
 
 /// What bounds a provider call unless the caller says otherwise: litellm's own default, which dspy
 /// never overrides, so a program that answers upstream answers here.
@@ -163,15 +166,23 @@ impl LM {
     /// written in the source — an app with a model picker has a `String`, and asking it for
     /// `&format!(…)` is a borrow it should not have to think about.
     pub fn new(model: impl AsRef<str>) -> Result<Self> {
+        let model = ModelRef::parse(model.as_ref())?;
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        if matches!(model.provider, Provider::Ollama | Provider::OllamaChat) {
+            anyhow::bail!(
+                "Ollama is unavailable in Cloudflare Workers; construct an Anthropic, OpenRouter, or OpenAI-compatible provider"
+            );
+        }
+
         Ok(Self {
             config: api::LmConfig::default(),
-            model: ModelRef::parse(model.as_ref())?,
+            model,
             anthropic_api_key: env_nonempty("ANTHROPIC_API_KEY"),
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),
             ollama_api_key: env_nonempty("OLLAMA_API_KEY"),
             openai: OpenAiConfig::from_env(),
-            cache: true,
+            cache: cfg!(feature = "process-global"),
             retry: Retry::default(),
             use_developer_role: false,
             timeout: DEFAULT_PROVIDER_TIMEOUT,
@@ -257,8 +268,10 @@ impl LM {
 
     /// Whether an identical earlier answer is replayed instead of asking again.
     ///
-    /// dspy's `cache=` argument, and on by default as upstream has it. Turn it off to measure a
-    /// model: with it on, a second run reads the first run's reply and reports it as fresh.
+    /// dspy's `cache=` argument. It defaults on in native builds, where the process-global cache
+    /// is available, and off in Worker builds, where caching must be explicitly owned through
+    /// [`Cached`]. Turn it off to measure a model: with it on, a second run
+    /// reads the first run's reply and reports it as fresh.
     pub fn cache(mut self, cache: bool) -> Self {
         self.cache = cache;
         self

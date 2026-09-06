@@ -146,7 +146,7 @@ where
             "the provider failed transiently; asking again"
         );
         if !wait.is_zero() {
-            tokio::time::sleep(wait).await;
+            futures_timer::Delay::new(wait).await;
         }
     }
     unreachable!("the loop returns on the last attempt, which `attempts >= 1` guarantees exists")

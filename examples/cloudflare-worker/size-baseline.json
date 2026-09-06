@@ -1,0 +1,8 @@
+{
+  "inference": {
+    "bytes": 940386,
+    "worker": "0.7.4",
+    "workerBuild": "0.7.4",
+    "wasmOpt": "-Os"
+  }
+}

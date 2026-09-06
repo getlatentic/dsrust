@@ -16,6 +16,7 @@ use anyhow::{Result, bail};
 use crate::example::{Example, Prediction};
 use crate::lm::Sampling;
 use crate::signature::Signature;
+use crate::wasm_compat::{WasmBoxFuture, WasmCompatSend, WasmCompatSync};
 
 pub(crate) mod ambient;
 mod state;
@@ -41,6 +42,7 @@ pub use trust::Trust;
 /// The counterpart of [`NamedPredictor`] for the other kind of optimizable component. It carries
 /// the module itself rather than a field, because a `Flex`'s whole state is its source and
 /// `Flex::bind` is what an optimizer writes back through.
+#[cfg(feature = "native")]
 pub struct NamedFlex<'a> {
     pub name: String,
     pub flex: &'a mut crate::predict::flex::Flex,
@@ -96,20 +98,18 @@ pub struct NamedPredictor<'a> {
 ///     }
 /// }
 /// ```
-pub trait Forward: Send + Sync {
-    fn forward(&self, inputs: Example) -> impl Future<Output = Result<Prediction>> + Send;
+pub trait Forward: WasmCompatSend + WasmCompatSync {
+    fn forward(&self, inputs: Example)
+    -> impl Future<Output = Result<Prediction>> + WasmCompatSend;
 }
 
 /// A callable program. Implement it to add a module of your own.
-pub trait Module: Send + Sync {
+pub trait Module: WasmCompatSend + WasmCompatSync {
     /// Run the program over one example's inputs.
     ///
     /// Boxed rather than `async fn` so the trait stays object-safe: a composed program holds
     /// its children as `Box<dyn Module>`, and an evaluator takes any module at all.
-    fn forward<'a>(
-        &'a self,
-        inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>>;
+    fn forward<'a>(&'a self, inputs: Example) -> WasmBoxFuture<'a, Result<Prediction>>;
 
     /// The same module, asked through a task — so `call!` answers with that task's outputs struct
     /// rather than a `Prediction`, exactly as it does for `Predict!(QA)` and `ReActV2!(QA, tools)`.
@@ -175,6 +175,7 @@ pub trait Module: Send + Sync {
     /// Defaulted to none, and a composed module must recurse into its children exactly as it does
     /// for `named_predictors` — a `Flex` nested inside a module that does not is invisible to an
     /// optimizer, which is the same cost that walk already carries.
+    #[cfg(feature = "native")]
     fn named_flexes(&mut self) -> Vec<NamedFlex<'_>> {
         Vec::new()
     }
@@ -327,7 +328,7 @@ pub trait Module: Send + Sync {
         &'a self,
         inputs: Example,
         trace: &'a mut Vec<TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> WasmBoxFuture<'a, Result<Prediction>> {
         let _ = trace;
         self.forward(inputs)
     }
@@ -397,10 +398,7 @@ pub trait Module: Send + Sync {
 pub trait Ask {
     type Answer;
 
-    fn ask<'a>(
-        &'a self,
-        inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Self::Answer>> + Send + 'a>>;
+    fn ask<'a>(&'a self, inputs: Example) -> WasmBoxFuture<'a, Result<Self::Answer>>;
 }
 
 /// Answer with the fields the module parsed, which is what a task declared by its field names
@@ -418,13 +416,9 @@ macro_rules! asks_with_a_prediction {
             fn ask<'a>(
                 &'a self,
                 inputs: $crate::Example,
-            ) -> ::std::pin::Pin<
-                ::std::boxed::Box<
-                    dyn ::std::future::Future<
-                            Output = $crate::__macro_support::anyhow::Result<$crate::Prediction>,
-                        > + Send
-                        + 'a,
-                >,
+            ) -> $crate::wasm_compat::WasmBoxFuture<
+                'a,
+                $crate::__macro_support::anyhow::Result<$crate::Prediction>,
             > {
                 $crate::Module::forward(self, inputs)
             }
@@ -450,10 +444,7 @@ mod tests {
     }
 
     impl Module for Echo {
-        fn forward<'a>(
-            &'a self,
-            inputs: Example,
-        ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        fn forward<'a>(&'a self, inputs: Example) -> WasmBoxFuture<'a, Result<Prediction>> {
             Box::pin(async move {
                 let echoed = inputs.get("request").cloned().unwrap_or(json!(""));
                 Ok(Prediction::new(

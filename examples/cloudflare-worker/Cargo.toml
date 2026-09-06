@@ -1,0 +1,32 @@
+[package]
+name = "dsrust-cloudflare-worker"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata.wasm-pack.profile.custom]
+wasm-opt = ["-Os"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+async-stream = "0.3"
+dsrust = { path = "../../crates/dsrust", default-features = false, features = ["inference"] }
+futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 0.7.4 intentionally shares wasm-streams 0.4 with reqwest 0.12. workers-rs 0.7.5+
+# moved to a different wasm-streams ABI, whose duplicated wasm-bindgen exports make a
+# reqwest-streaming final consumer fail after `cargo check` succeeds.
+worker = "=0.7.4"
+
+[workspace]
+
+[profile.worker]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

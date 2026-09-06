@@ -46,3 +46,13 @@ mutants.out.old/
 # because a note nobody could see went stale.
 /backlog.toml
 /HANDOFF.md
+
+# Shared repository instructions override machine-wide agent-file exclusions.
+!/AGENTS.md
+!/CLAUDE.md
+
+/examples/cloudflare-worker/build/
+/examples/cloudflare-worker/node_modules/
+/examples/cloudflare-worker/target/
+/examples/cloudflare-worker/.wrangler/
+/examples/cloudflare-worker/.dev.vars*

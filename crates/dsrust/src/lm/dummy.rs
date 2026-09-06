@@ -193,7 +193,8 @@ impl ChatModel for DummyLM {
     fn forward<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
+    ) -> impl Future<Output = Result<api::LmResponse>> + crate::wasm_compat::WasmCompatSend + 'a
+    {
         let json_mode = request.output_schema().is_some();
         let asked = Asked {
             messages: request.messages.clone(),

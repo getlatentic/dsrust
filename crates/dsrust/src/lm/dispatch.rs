@@ -11,11 +11,12 @@
 //! own provider.
 
 use anyhow::Result;
-use futures_util::Stream;
 
+#[cfg(feature = "process-global")]
+use super::cache;
 use super::{
-    Capabilities, ChatModel, LM, OpenAiWire, Provider, anthropic, api, cache, global, ollama,
-    openai, retry, usage,
+    Capabilities, ChatModel, LM, OpenAiWire, Provider, anthropic, api, global, ollama, openai,
+    retry, usage,
 };
 
 impl ChatModel for LM {
@@ -44,7 +45,9 @@ impl ChatModel for LM {
     fn forward_stream<'a>(
         &'a self,
         request: &'a api::LmRequest,
-    ) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'a {
+    ) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>>
+    + crate::wasm_compat::WasmCompatSend
+    + 'a {
         // Everything the provider stream needs is built here and owned by it: `RequestBuilder`
         // carries its own clone of the client, so nothing below borrows either of these.
         self.forward_stream_on(&global::client(), &self.with_defaults(request))
@@ -118,7 +121,7 @@ impl LM {
         &self,
         http: &reqwest::Client,
         request: &api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'static>> {
+    ) -> crate::wasm_compat::WasmBoxStream<'static, Result<api::LmStreamEvent>> {
         match self.model.provider {
             // `Endpoint::stream` already boxes — it picks the chat or Responses wire, whose stream
             // types differ — so these arms hand its stream straight back rather than box it again.
@@ -165,14 +168,19 @@ impl LM {
             usage::record(&self.model.id, answered.spend());
             return Ok(answered);
         }
-        let key = request.cache_key(&self.model.id);
-        if let Some(replayed) = cache::shared().replay(&key) {
-            return Ok(replayed);
+        #[cfg(not(feature = "process-global"))]
+        anyhow::bail!("LM process-wide caching is disabled; wrap LM::cache(false) in lm::Cached");
+        #[cfg(feature = "process-global")]
+        {
+            let key = request.cache_key(&self.model.id);
+            if let Some(replayed) = cache::shared().replay(&key) {
+                return Ok(replayed);
+            }
+            let answered = self.ask_provider_retrying(request).await?;
+            usage::record(&self.model.id, answered.spend());
+            cache::shared().keep(key, answered.clone());
+            Ok(answered)
         }
-        let answered = self.ask_provider_retrying(request).await?;
-        usage::record(&self.model.id, answered.spend());
-        cache::shared().keep(key, answered.clone());
-        Ok(answered)
     }
 
     /// The call, asked again while it fails the way dspy retries — see [`retry`].

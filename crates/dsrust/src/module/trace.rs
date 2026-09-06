@@ -195,12 +195,9 @@ pub fn under<'a>(
 /// The trace comes back beside the answer rather than through an out-parameter because a run that
 /// *failed* still has one, and a caller that has to remember to read a buffer after an error is a
 /// caller that will not.
-pub(crate) type Traced<'a> = std::pin::Pin<
-    Box<
-        dyn Future<Output = (anyhow::Result<crate::example::Prediction>, Vec<TraceStep>)>
-            + Send
-            + 'a,
-    >,
+pub(crate) type Traced<'a> = crate::wasm_compat::WasmBoxFuture<
+    'a,
+    (anyhow::Result<crate::example::Prediction>, Vec<TraceStep>),
 >;
 
 /// What each predictor in a program is called, keyed by the identity it records under.
@@ -213,6 +210,7 @@ pub struct PredictorNames(pub(crate) std::sync::Arc<std::collections::HashMap<us
 impl PredictorNames {
     /// The identity a name was given to, for a step recorded under this map to be recorded again
     /// under an enclosing one.
+    #[cfg(feature = "native")]
     pub(crate) fn identity_of(&self, name: &str) -> Option<usize> {
         self.0
             .iter()

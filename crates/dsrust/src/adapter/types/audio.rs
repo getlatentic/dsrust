@@ -135,6 +135,7 @@ impl Audio {
         let pcm: Vec<i16> = samples.iter().map(|sample| pcm16(*sample)).collect();
         let encoded = match container {
             Container::Wav => wav_pcm16(&pcm, sampling_rate),
+            #[cfg(feature = "media")]
             Container::Flac => flac_pcm16(&pcm, sampling_rate)?,
             #[cfg(feature = "mp3")]
             Container::Mp3 => mp3_pcm16(&pcm, sampling_rate)?,
@@ -230,6 +231,7 @@ pub enum Container {
     /// 16-bit PCM in a RIFF container — libsndfile's default, and upstream's.
     Wav,
     /// Lossless, and roughly half of what the same samples cost as WAV.
+    #[cfg(feature = "media")]
     Flac,
     /// Lossy, and the only other container OpenAI accepts for audio input.
     ///
@@ -246,6 +248,7 @@ impl Container {
     fn name(self) -> &'static str {
         match self {
             Container::Wav => "wav",
+            #[cfg(feature = "media")]
             Container::Flac => "flac",
             #[cfg(feature = "mp3")]
             Container::Mp3 => "mp3",
@@ -265,6 +268,7 @@ fn pcm16(sample: f32) -> i16 {
 }
 
 /// One mono FLAC at 16 bits a sample.
+#[cfg(feature = "media")]
 fn flac_pcm16(pcm: &[i16], sampling_rate: u32) -> anyhow::Result<Vec<u8>> {
     use flacenc::component::BitRepr;
     use flacenc::error::Verify;

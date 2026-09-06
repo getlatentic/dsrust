@@ -155,7 +155,7 @@ impl Module for ChainOfThought {
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(async move {
             let span = crate::observe::module_shown("ChainOfThought", &inputs, self.callbacks());
             crate::observe::watching(span, self.predict.forward(inputs)).await
@@ -166,7 +166,7 @@ impl Module for ChainOfThought {
         &'a self,
         inputs: Example,
         trace: &'a mut Vec<TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         self.predict.forward_traced(inputs, trace)
     }
 
@@ -194,7 +194,7 @@ impl<S: SignatureSpec + Send + Sync> Module for TypedChainOfThought<S> {
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         self.cot.forward(inputs)
     }
 
@@ -202,7 +202,7 @@ impl<S: SignatureSpec + Send + Sync> Module for TypedChainOfThought<S> {
         &'a self,
         inputs: Example,
         trace: &'a mut Vec<TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         self.cot.forward_traced(inputs, trace)
     }
 
@@ -319,7 +319,7 @@ where
     fn ask<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<S::Outputs>> {
         Box::pin(async move {
             let lm = global::current()?;
             let span = crate::observe::module_shown(

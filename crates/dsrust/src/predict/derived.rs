@@ -136,7 +136,7 @@ where
     fn ask<'a>(
         &'a self,
         inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<S::Outputs>> {
         Box::pin(async move {
             let lm = self.asking()?;
             // The point, as the value-level path opens it: dspy decorates `Module.__call__` for

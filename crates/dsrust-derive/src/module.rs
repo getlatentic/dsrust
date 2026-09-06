@@ -30,12 +30,9 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
                 fn ask<'a>(
                     &'a self,
                     inputs: ::dsrust::Example,
-                ) -> ::std::pin::Pin<
-                    ::std::boxed::Box<
-                        dyn ::std::future::Future<Output = ::dsrust::__macro_support::anyhow::Result<Self::Answer>>
-                            + Send
-                            + 'a,
-                    >,
+                ) -> ::dsrust::wasm_compat::WasmBoxFuture<
+                    'a,
+                    ::dsrust::__macro_support::anyhow::Result<Self::Answer>,
                 > {
                     ::std::boxed::Box::pin(async move {
                         ::dsrust::Module::forward(self, inputs)
@@ -71,12 +68,9 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
             fn forward<'a>(
                 &'a self,
                 inputs: ::dsrust::Example,
-            ) -> ::std::pin::Pin<
-                ::std::boxed::Box<
-                    dyn ::std::future::Future<Output = ::dsrust::__macro_support::anyhow::Result<::dsrust::Prediction>>
-                        + Send
-                        + 'a,
-                >,
+            ) -> ::dsrust::wasm_compat::WasmBoxFuture<
+                'a,
+                ::dsrust::__macro_support::anyhow::Result<::dsrust::Prediction>,
             > {
                 ::std::boxed::Box::pin(async move {
                     // dspy's `on_module_start`/`on_module_end`, which upstream gets by decorating

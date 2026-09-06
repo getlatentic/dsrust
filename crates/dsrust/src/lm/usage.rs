@@ -14,7 +14,10 @@
 //! asking this question wants.
 
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::future::Future;
+use std::sync::{Arc, Mutex};
+#[cfg(feature = "process-global")]
+use std::sync::{MutexGuard, OnceLock};
 
 use super::LmUsage;
 
@@ -60,13 +63,84 @@ impl UsageTracker {
     }
 }
 
+thread_local! {
+    /// The tracker installed for the future currently being polled. A Worker isolate may
+    /// interleave many requests on one thread, so this is restored after every poll rather than
+    /// left installed across an await.
+    static SCOPED: std::cell::RefCell<Option<Arc<UsageTracker>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Create a request-local usage scope that remains isolated when futures are interleaved.
+pub fn scoped() -> UsageScope {
+    UsageScope {
+        tracker: Arc::new(UsageTracker::default()),
+    }
+}
+
+/// Usage accounting owned by one asynchronous operation.
+#[derive(Clone)]
+pub struct UsageScope {
+    tracker: Arc<UsageTracker>,
+}
+
+impl UsageScope {
+    pub fn tracker(&self) -> &UsageTracker {
+        &self.tracker
+    }
+
+    pub fn total(&self) -> LmUsage {
+        self.tracker.total()
+    }
+
+    pub async fn run<T>(&self, work: impl Future<Output = T>) -> T {
+        ScopedUsage {
+            tracker: Arc::clone(&self.tracker),
+            inner: Box::pin(work),
+        }
+        .await
+    }
+}
+
+struct ScopedUsage<F> {
+    tracker: Arc<UsageTracker>,
+    inner: std::pin::Pin<Box<F>>,
+}
+
+impl<F: Future> Future for ScopedUsage<F> {
+    type Output = F::Output;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let scoped = self.get_mut();
+        let entered = EnteredUsage(
+            SCOPED.with(|slot| slot.borrow_mut().replace(Arc::clone(&scoped.tracker))),
+        );
+        let polled = scoped.inner.as_mut().poll(context);
+        drop(entered);
+        polled
+    }
+}
+
+struct EnteredUsage(Option<Arc<UsageTracker>>);
+
+impl Drop for EnteredUsage {
+    fn drop(&mut self) {
+        SCOPED.with(|slot| *slot.borrow_mut() = self.0.take());
+    }
+}
+
 /// The tracker calls are charged to while one is scoped, and the lock that keeps two overlapping
 /// scopes from totalling into each other.
+#[cfg(feature = "process-global")]
 fn installed() -> &'static Mutex<Option<Arc<UsageTracker>>> {
     static INSTALLED: OnceLock<Mutex<Option<Arc<UsageTracker>>>> = OnceLock::new();
     INSTALLED.get_or_init(|| Mutex::new(None))
 }
 
+#[cfg(feature = "process-global")]
 fn scope() -> &'static Mutex<()> {
     static SCOPE: OnceLock<Mutex<()>> = OnceLock::new();
     SCOPE.get_or_init(|| Mutex::new(()))
@@ -86,6 +160,7 @@ fn scope() -> &'static Mutex<()> {
 /// // Dropping it stops the counting, so the scope is the block rather than a call to end it.
 /// # Ok(()) }
 /// ```
+#[cfg(feature = "process-global")]
 pub fn track() -> Tracking {
     // Held for the whole scope, so a second `track()` waits rather than silently splitting one
     // run's calls between two totals.
@@ -101,11 +176,13 @@ pub fn track() -> Tracking {
 }
 
 /// A scope that is counting. Charges stop when it is dropped.
+#[cfg(feature = "process-global")]
 pub struct Tracking {
     tracker: Arc<UsageTracker>,
     _held: MutexGuard<'static, ()>,
 }
 
+#[cfg(feature = "process-global")]
 impl Tracking {
     pub fn tracker(&self) -> &UsageTracker {
         &self.tracker
@@ -117,6 +194,7 @@ impl Tracking {
     }
 }
 
+#[cfg(feature = "process-global")]
 impl Drop for Tracking {
     fn drop(&mut self) {
         *installed().lock().expect("not poisoned") = None;
@@ -129,12 +207,17 @@ impl Drop for Tracking {
 /// which is nothing on a cache hit, so a cached run totals what it actually bought.
 pub(super) fn record(model: &str, spend: Option<LmUsage>) {
     let Some(usage) = spend else { return };
+    if let Some(tracker) = SCOPED.with(|slot| slot.borrow().clone()) {
+        tracker.add(model, usage);
+        return;
+    }
+    #[cfg(feature = "process-global")]
     if let Some(tracker) = installed().lock().expect("not poisoned").as_ref() {
         tracker.add(model, usage);
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "process-global"))]
 mod tests {
     use super::*;
 
@@ -225,5 +308,34 @@ mod tests {
         let counting = track();
         record("anthropic/claude", None);
         assert!(counting.tracker().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod scoped_tests {
+    use super::*;
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn interleaved_scopes_never_share_usage() {
+        let first = scoped();
+        let second = scoped();
+
+        let first_run = first.run(async {
+            record("first", Some(LmUsage::counted(2, 3)));
+            tokio::task::yield_now().await;
+            record("first", Some(LmUsage::counted(5, 7)));
+        });
+        let second_run = second.run(async {
+            record("second", Some(LmUsage::counted(11, 13)));
+            tokio::task::yield_now().await;
+            record("second", Some(LmUsage::counted(17, 19)));
+        });
+
+        tokio::join!(first_run, second_run);
+
+        assert_eq!(first.total(), LmUsage::counted(7, 10));
+        assert_eq!(second.total(), LmUsage::counted(28, 32));
+        assert_eq!(first.tracker().by_model().len(), 1);
+        assert_eq!(second.tracker().by_model().len(), 1);
     }
 }

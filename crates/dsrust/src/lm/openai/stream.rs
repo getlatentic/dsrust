@@ -102,7 +102,7 @@ pub(super) fn events(
     model: String,
     body: Value,
     timeout: Duration,
-) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'static {
+) -> impl Stream<Item = Result<LmStreamEvent>> + crate::wasm_compat::WasmCompatSend + 'static {
     let mut request = http.post(url).timeout(timeout).json(&body);
     if let Some(key) = key {
         request = request.bearer_auth(key);

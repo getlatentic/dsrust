@@ -15,6 +15,7 @@ use futures_util::StreamExt;
 
 use crate::example::{Example, Prediction};
 
+#[cfg(feature = "native")]
 pub mod auto;
 pub mod dpr;
 pub mod metrics;

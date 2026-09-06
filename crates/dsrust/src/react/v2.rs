@@ -7,8 +7,6 @@
 //! reserved `submit` tool with the task's outputs — or the budget runs out and one last turn is
 //! forced to submit.
 
-use std::pin::Pin;
-
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value, json};
 
@@ -342,7 +340,7 @@ impl Module for ReActV2 {
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(async move {
             let span = crate::observe::module_shown("ReActV2", &inputs, self.callbacks());
             let mut discarded = Vec::new();
@@ -354,7 +352,7 @@ impl Module for ReActV2 {
         &'a self,
         inputs: Example,
         trace: &'a mut Vec<TraceStep>,
-    ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<Prediction>> {
         Box::pin(self.run(inputs, trace))
     }
 

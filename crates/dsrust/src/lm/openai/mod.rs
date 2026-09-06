@@ -87,9 +87,7 @@ impl<'a> Endpoint<'a> {
         &self,
         http: &reqwest::Client,
         call: &api::LmRequest,
-    ) -> std::pin::Pin<
-        Box<dyn futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'static>,
-    > {
+    ) -> crate::wasm_compat::WasmBoxStream<'static, Result<api::LmStreamEvent>> {
         // The body is built first because building it can refuse the call — an OpenAI reasoning
         // model asked to reason at a chosen temperature. A refusal arrives as the stream's first
         // and only item, which is where a streaming caller reads a failure from anyway.

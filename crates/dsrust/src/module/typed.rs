@@ -9,9 +9,7 @@
 //! is built, and the answer arrives as the task's own outputs struct. So `call!` answers with a
 //! struct for every spelling that names a task, which is what a reader expects after seeing one.
 
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
 
 use anyhow::Result;
 
@@ -83,7 +81,7 @@ where
     fn forward<'a>(
         &'a self,
         inputs: Example,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::Prediction>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<crate::Prediction>> {
         self.module.forward(inputs)
     }
 
@@ -102,7 +100,7 @@ where
     fn ask<'a>(
         &'a self,
         inputs: Example,
-    ) -> Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
+    ) -> crate::wasm_compat::WasmBoxFuture<'a, Result<S::Outputs>> {
         Box::pin(async move { self.module.forward(inputs).await?.typed::<S::Outputs>() })
     }
 }

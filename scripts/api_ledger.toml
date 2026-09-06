@@ -369,7 +369,7 @@
 "evaluate/metrics.py::em_score" = { status = "mapped", rust = "metrics::em_score" }
 "evaluate/metrics.py::f1_score" = { status = "mapped", rust = "metrics::f1_score" }
 "evaluate/metrics.py::hotpot_f1_score" = { status = "mapped", rust = "metrics::hotpot_f1_score" }
-"evaluate/metrics.py::normalize_text" = { status = "mapped", rust = "metrics::normalize_text" }
+"evaluate/metrics.py::normalize_text" = { status = "mapped", rust = "normalize::normalize_text", reason = "defined outside `evaluate` so the inference core can normalise without the native feature, and re-exported from `metrics` where dspy declares it" }
 "evaluate/metrics.py::precision_score" = { status = "mapped", rust = "metrics::precision_score" }
 
 # --- core (the typed LM boundary; reproduced as Rust-shaped types in lm/api/*) ---
@@ -1965,6 +1965,17 @@
 "primitives/python_interpreter.py::PythonInterpreter.invoke_tool.kwargs" = { status = "mapped", rust = "DenoInterpreter::invoke_tool", reason = "the arguments as the JSON object the sandbox sent" }
 
 [rust_only]
+"dsrust::wasm_compat::WasmCompatSend" = { status = "divergence", rust = "WasmCompatSend", reason = "the bound `Forward` and `Module` carry, and the one on the future `ChatModel::forward` answers with: `Send` where threads exist, nothing on `wasm32-unknown-unknown`. dspy states no such bound anywhere, so there is nothing upstream to map to" }
+"dsrust::wasm_compat::WasmCompatSync" = { status = "divergence", rust = "WasmCompatSync", reason = "the `Sync` half, carried as a supertrait of `Forward` and `Module` beside `WasmCompatSend`" }
+"dsrust::wasm_compat::WasmBoxFuture" = { status = "divergence", rust = "WasmBoxFuture", reason = "the boxed future `DynChatModel` and the object-safe module traits answer with, `Send` per target. An alias and not `dyn Future + WasmCompatSend`, which the compiler rejects — only auto traits may be added to a trait object" }
+"dsrust::wasm_compat::WasmBoxStream" = { status = "divergence", rust = "WasmBoxStream", reason = "the streaming counterpart, returned by `forward_stream_dyn`, on the same trait-object rule as `WasmBoxFuture`" }
+"dsrust::lm::usage::scoped" = { status = "divergence", rust = "usage::scoped", reason = "a usage tracker owned by one operation rather than the process. dspy's `track_usage` is a context manager over global settings, which a Worker isolate cannot use: it interleaves requests on one thread, so a process-wide total mixes callers who never met" }
+"dsrust::lm::usage::UsageScope" = { status = "divergence", rust = "usage::UsageScope", reason = "what `scoped` hands back, installed across a poll and taken down after — the same discipline `module::ambient` uses for a trace, for the same reason" }
+"dsrust::lm::usage::UsageScope::run" = { status = "divergence", rust = "UsageScope::run", reason = "runs a future with this scope installed for each of its polls" }
+"dsrust::lm::usage::UsageScope::total" = { status = "divergence", rust = "UsageScope::total", reason = "what the calls under this scope have cost" }
+"dsrust::lm::usage::UsageScope::tracker" = { status = "divergence", rust = "UsageScope::tracker", reason = "the tracker itself, for a caller wanting the per-model breakdown rather than the sum" }
+"dsrust::lm::UsageScope" = { status = "reexport", reason = "where `usage::UsageScope` is reached from; the module path is the classified one" }
+"dsrust::lm::scoped_usage" = { status = "reexport", reason = "where `usage::scoped` is reached from; the module path is the classified one" }
 "tpe::truncnorm::log_sum" = { status = "divergence", rust = "truncnorm::log_sum", reason = "optuna `_log_sum`, which is `np.logaddexp`: the larger term stays outside the exponential, equal arguments take the closed form `x + ln 2`, and an infinite one short-circuits rather than subtracting infinities from each other" }
 "dsrust::optimize::InferRules::new" = { status = "divergence", rust = "InferRules::new", reason = "the optimizer at dspy's defaults: ten candidates of ten rules each" }
 "dsrust::optimize::InferRules::max_bootstrapped_demos" = { status = "divergence", rust = "InferRules::max_bootstrapped_demos", reason = "the bootstrap's demo budget. Upstream takes it through `**kwargs` and forwards it to `BootstrapFewShot.__init__`, which a Rust builder spells as its own method" }

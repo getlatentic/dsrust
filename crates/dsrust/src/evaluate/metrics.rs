@@ -6,84 +6,15 @@
 
 use std::collections::HashMap;
 
-use serde_json::Value;
-use unicode_normalization::UnicodeNormalization;
-
 use crate::evaluate::dpr;
 use crate::example::{Example, Prediction};
+use serde_json::Value;
+
+pub use crate::normalize::normalize_text;
 
 /// The answers dspy treats as labels rather than prose: a HotPotQA answer of `yes` never partly
 /// matches `no`, however many tokens they share.
 const LABELS: [&str; 3] = ["yes", "no", "noanswer"];
-
-/// dspy `normalize_text`: Unicode NFD, lowercase, drop ASCII punctuation, drop English articles,
-/// then collapse whitespace — in that order, which is the order upstream nests the steps in.
-pub fn normalize_text(text: &str) -> String {
-    let folded: String = text.nfd().collect::<String>().to_lowercase();
-    let unpunctuated: String = folded
-        .chars()
-        .filter(|c| !is_ascii_punctuation(*c))
-        .collect();
-    collapse_whitespace(&remove_articles(&unpunctuated))
-}
-
-/// Python's `string.punctuation`, which is ASCII only — a Unicode dash or quote survives it, and
-/// upstream's normalisation leaves those in place too.
-fn is_ascii_punctuation(c: char) -> bool {
-    c.is_ascii_punctuation()
-}
-
-/// Python's `\w`: a letter, a digit, or an underscore. What decides where a word ends, and so
-/// which `a` is an article and which is part of a longer word.
-fn is_word(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-/// dspy's `re.sub(r"\b(a|an|the)\b", " ", text)`: each standalone article becomes a space.
-///
-/// The alternation is tried in upstream's order, so at `an` the pattern first tries `a`, finds a
-/// word character after it, and falls through to `an` — which is why matching longest-first here
-/// would be the wrong reading of the same regex.
-fn remove_articles(text: &str) -> String {
-    const ARTICLES: [&str; 3] = ["a", "an", "the"];
-    let chars: Vec<char> = text.chars().collect();
-    let mut out = String::with_capacity(text.len());
-    // The walk shrinks a slice rather than advancing a cursor: every arm continues from a strict
-    // suffix of `rest`, so there is no index arithmetic for a mutant to stall — the shape the
-    // cursor-arithmetic lint enforces, after four spins of the `index += n` form elsewhere.
-    let mut rest: &[char] = &chars;
-    let mut opens = true;
-    while let Some((&first, tail)) = rest.split_first() {
-        let article = opens
-            .then(|| {
-                ARTICLES.into_iter().find(|article| {
-                    let length = article.chars().count();
-                    length <= rest.len()
-                        && rest[..length].iter().copied().eq(article.chars())
-                        && rest.get(length).copied().is_none_or(|next| !is_word(next))
-                })
-            })
-            .flatten();
-        match article {
-            Some(article) => {
-                out.push(' ');
-                rest = &rest[article.chars().count()..];
-                opens = true;
-            }
-            None => {
-                out.push(first);
-                opens = !is_word(first);
-                rest = tail;
-            }
-        }
-    }
-    out
-}
-
-/// Python's `" ".join(text.split())`: split on any run of whitespace, joined by single spaces.
-fn collapse_whitespace(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
-}
 
 /// How many tokens the two share, counting repeats — Python's `Counter(a) & Counter(b)` summed.
 fn overlap(prediction: &[&str], truth: &[&str]) -> usize {

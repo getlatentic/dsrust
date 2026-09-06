@@ -62,6 +62,37 @@ jobs:
           cargo install ast-grep --locked
           ast-grep scan --rule scripts/lints/cursor_arithmetic_loop.yml crates/
 
+  worker:
+    name: Cloudflare Worker consumer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: examples/cloudflare-worker/package-lock.json
+      - name: install Worker toolchain
+        run: cargo install worker-build --version 0.7.4 --locked
+      - name: check inference package independently
+        run: cargo check --target wasm32-unknown-unknown -p dsrust --lib --no-default-features --features inference
+      - name: install fixture dependencies
+        run: npm ci
+        working-directory: examples/cloudflare-worker
+      - name: build final Worker consumer
+        run: npm run build
+        working-directory: examples/cloudflare-worker
+      - name: enforce Worker size budget
+        run: npm run check:size
+        working-directory: examples/cloudflare-worker
+      - name: exercise Worker routes in workerd
+        run: npm run test:local
+        working-directory: examples/cloudflare-worker
+
   # The conformance half: DSPy's own pytest suite driven through the PyO3 bridge, plus the gates
   # that need Python or Deno. Linux only — it is a development harness, not something a consumer
   # builds, and the bridge's link arguments are the one place this repo is platform-shaped.

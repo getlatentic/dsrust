@@ -30,12 +30,15 @@
 //! configure_callbacks([Arc::new(Logging) as Arc<dyn Callback>]);
 //! ```
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+#[cfg(feature = "process-global")]
+use std::sync::RwLock;
 
 use anyhow::Error;
 use serde_json::Value;
 
 use crate::adapter::Input;
+#[cfg(feature = "native")]
 use crate::evaluate::{Evaluation, Pass};
 use crate::example::{Example, Prediction};
 use crate::lm::api;
@@ -130,6 +133,7 @@ pub trait Callback: Send + Sync {
     /// The rows are handed over whole, as upstream's `inputs["devset"]` is — a handler that only
     /// wants the count takes it. `pass` is dspy's `callback_metadata`: which pass of a search this
     /// is, and `None` for a caller scoring directly.
+    #[cfg(feature = "native")]
     fn on_evaluate_start(
         &self,
         call: &CallId,
@@ -145,15 +149,18 @@ pub trait Callback: Send + Sync {
     /// The error is never a single row's: a failing row scores `failure_score` and the run carries
     /// on. It is the run abandoning the devset once `max_errors` rows have failed, which upstream
     /// raises out of `Evaluate.__call__` and reports here with `outputs=None`.
+    #[cfg(feature = "native")]
     fn on_evaluate_end(&self, call: &CallId, evaluated: Result<&Evaluation, &Error>) {
         let _ = (call, evaluated);
     }
     /// A sandbox is about to run code — dspy 3.3.1's `on_interpreter_execute_start`. `interpreter`
     /// is the type, as `module` is for a module.
+    #[cfg(feature = "native")]
     fn on_interpreter_execute_start(&self, call: &CallId, interpreter: &str, code: &str) {
         let _ = (call, interpreter, code);
     }
     /// The sandbox finished running code, with what it produced or why it could not.
+    #[cfg(feature = "native")]
     fn on_interpreter_execute_end(
         &self,
         call: &CallId,
@@ -163,31 +170,38 @@ pub trait Callback: Send + Sync {
     }
     /// Sandboxed code called back into one of the interpreter's tools — dspy 3.3.1's
     /// `on_interpreter_tool_call_start`, which encloses the tool's own point.
+    #[cfg(feature = "native")]
     fn on_interpreter_tool_call_start(&self, call: &CallId, tool: &str, args: &Value) {
         let _ = (call, tool, args);
     }
     /// The tool the sandbox called answered, or refused.
+    #[cfg(feature = "native")]
     fn on_interpreter_tool_call_end(&self, call: &CallId, answered: Result<&Value, &Error>) {
         let _ = (call, answered);
     }
     /// The interpreter is starting its sandbox, or making sure one is running — dspy's `start`,
     /// which every execution reaches.
+    #[cfg(feature = "native")]
     fn on_interpreter_startup_start(&self, call: &CallId, interpreter: &str) {
         let _ = (call, interpreter);
     }
+    #[cfg(feature = "native")]
     fn on_interpreter_startup_end(&self, call: &CallId, answered: Result<(), &Error>) {
         let _ = (call, answered);
     }
     /// The interpreter is shutting its sandbox down.
+    #[cfg(feature = "native")]
     fn on_interpreter_shutdown_start(&self, call: &CallId, interpreter: &str) {
         let _ = (call, interpreter);
     }
+    #[cfg(feature = "native")]
     fn on_interpreter_shutdown_end(&self, call: &CallId, answered: Result<(), &Error>) {
         let _ = (call, answered);
     }
     /// An optimizer's `compile` was entered — dspy 3.3.1's `on_compile_start`. `optimizer` is the
     /// type — `BootstrapFewShot`, `GEPA` — and the sets are what it was handed; a compile an
     /// optimizer runs on itself from inside its own compile is not reported again.
+    #[cfg(feature = "native")]
     fn on_compile_start(
         &self,
         call: &CallId,
@@ -198,17 +212,20 @@ pub trait Callback: Send + Sync {
         let _ = (call, optimizer, trainset, valset);
     }
     /// The compile returned, or failed.
+    #[cfg(feature = "native")]
     fn on_compile_end(&self, call: &CallId, compiled: Result<(), &Error>) {
         let _ = (call, compiled);
     }
 }
 
+#[cfg(feature = "process-global")]
 static REGISTERED: RwLock<Vec<Arc<dyn Callback>>> = RwLock::new(Vec::new());
 
 /// Watch every run in this process with these — dspy's `dspy.configure(callbacks=[…])`.
 ///
 /// Replaces whatever was registered before, as upstream's does. Registering an empty list is how a
 /// caller stops watching.
+#[cfg(feature = "process-global")]
 pub fn configure_callbacks(callbacks: impl IntoIterator<Item = Arc<dyn Callback>>) {
     *REGISTERED.write().expect("lock not poisoned") = callbacks.into_iter().collect();
 }
@@ -219,7 +236,10 @@ pub fn configure_callbacks(callbacks: impl IntoIterator<Item = Arc<dyn Callback>
 /// Anything [`watched_by`] scoped comes after the process-wide ones,
 /// because upstream appends to the list it inherited rather than replacing it.
 pub(crate) fn registered() -> Vec<Arc<dyn Callback>> {
+    #[cfg(feature = "process-global")]
     let mut all = REGISTERED.read().expect("lock not poisoned").clone();
+    #[cfg(not(feature = "process-global"))]
+    let mut all = Vec::new();
     all.extend(SCOPED.with(|scoped| scoped.borrow().clone()));
     all
 }
@@ -295,11 +315,21 @@ impl<F: Future> Future for Watched<F> {
     ) -> std::task::Poll<F::Output> {
         let watched = self.get_mut();
         SCOPED.with(|scoped| scoped.borrow_mut().push(Arc::clone(&watched.extra)));
+        let entered = ScopedCallback;
         let answered = watched.inner.as_mut().poll(context);
+        drop(entered);
+        answered
+    }
+}
+
+/// Removes the poll-scoped callback even if the wrapped future panics.
+struct ScopedCallback;
+
+impl Drop for ScopedCallback {
+    fn drop(&mut self) {
         SCOPED.with(|scoped| {
             scoped.borrow_mut().pop();
         });
-        answered
     }
 }
 
@@ -308,8 +338,18 @@ impl<F: Future> Future for Watched<F> {
 /// interest.
 pub(crate) fn watching(instance: &[Arc<dyn Callback>]) -> bool {
     !instance.is_empty()
-        || !REGISTERED.read().expect("lock not poisoned").is_empty()
+        || process_callbacks_registered()
         || SCOPED.with(|scoped| !scoped.borrow().is_empty())
+}
+
+#[cfg(feature = "process-global")]
+fn process_callbacks_registered() -> bool {
+    !REGISTERED.read().expect("lock not poisoned").is_empty()
+}
+
+#[cfg(not(feature = "process-global"))]
+fn process_callbacks_registered() -> bool {
+    false
 }
 
 /// Tell every callback about one point, with a handler that cannot end the run.
@@ -547,6 +587,33 @@ mod tests {
 
         assert_eq!(counting.seen(&call), ["Predict"]);
         assert!(!watching(&[]), "and it is gone once the work is done");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn interleaved_scopes_never_observe_the_other_callback() {
+        let first = Arc::new(Counting::default()) as Arc<dyn Callback>;
+        let second = Arc::new(Counting::default()) as Arc<dyn Callback>;
+
+        let first_run = watched_by(Arc::clone(&first)).run(async {
+            let active = registered();
+            assert!(active.iter().any(|callback| Arc::ptr_eq(callback, &first)));
+            assert!(!active.iter().any(|callback| Arc::ptr_eq(callback, &second)));
+            tokio::task::yield_now().await;
+            let active = registered();
+            assert!(active.iter().any(|callback| Arc::ptr_eq(callback, &first)));
+            assert!(!active.iter().any(|callback| Arc::ptr_eq(callback, &second)));
+        });
+        let second_run = watched_by(Arc::clone(&second)).run(async {
+            let active = registered();
+            assert!(active.iter().any(|callback| Arc::ptr_eq(callback, &second)));
+            assert!(!active.iter().any(|callback| Arc::ptr_eq(callback, &first)));
+            tokio::task::yield_now().await;
+            let active = registered();
+            assert!(active.iter().any(|callback| Arc::ptr_eq(callback, &second)));
+            assert!(!active.iter().any(|callback| Arc::ptr_eq(callback, &first)));
+        });
+
+        tokio::join!(first_run, second_run);
     }
 
     /// Nothing registered is nothing to tell, which is what every point checks before it renders
