@@ -85,8 +85,8 @@ pub mod predict;
 pub mod python;
 pub mod react;
 mod resource;
-pub mod retrievers;
 #[cfg(feature = "native")]
+pub mod retrievers;
 mod scoped;
 pub mod signature;
 pub mod wasm_compat;

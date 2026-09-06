@@ -86,6 +86,23 @@ python3 scripts/record_rust_tests.py < target/last-cargo-test.txt
 echo "==> cargo test -p dsrust --features mp3 (optional, not in the count)"
 bounded cargo test -p dsrust --features mp3 --lib adapter::types::audio
 
+# The Worker target, which nothing else here reaches. Native builds carry `native` by default, so
+# a module gated onto the wrong side of a `#[cfg]` compiles cleanly on every check above and fails
+# only when a Worker is linked — which is how `mod scoped;` shipped inheriting the attribute
+# belonging to `pub mod retrievers;`, breaking wasm while 26 sections passed green.
+#
+# A check rather than the fixture's full link: `worker-build` and a pinned `worker` crate are not
+# on every machine, and CI covers that half. This is the part that costs seconds and catches the
+# feature-gating mistake.
+echo "==> cargo check --target wasm32-unknown-unknown (inference only)"
+if rustup target list --installed | grep -qx wasm32-unknown-unknown; then
+  cargo check --quiet --target wasm32-unknown-unknown -p dsrust --lib \
+    --no-default-features --features inference
+else
+  echo "    wasm32-unknown-unknown is not installed; skipping"
+  echo "    rustup target add wasm32-unknown-unknown"
+fi
+
 echo "==> cargo build --all-targets"
 # The same scope CI builds, so the two cannot drift into checking different things. Both
 # exclude `dsrs-bridge` for the same reason: it is a PyO3 shim for the upstream suite, not
