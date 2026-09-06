@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 use harness::{Harness, ToolAccess};
 
+use crate::capability::Temperature;
 use crate::model::{HarnessModel, MARKER_DISCIPLINE};
 
 /// What a [`HarnessModel`] carries into every run.
@@ -20,6 +21,7 @@ pub(crate) struct Settings {
     pub(crate) max_turns: Option<u32>,
     pub(crate) max_thinking_tokens: Option<u32>,
     pub(crate) instructions: Option<String>,
+    pub(crate) temperature: Temperature,
 }
 
 impl Default for Settings {
@@ -31,6 +33,7 @@ impl Default for Settings {
             max_turns: None,
             max_thinking_tokens: None,
             instructions: Some(MARKER_DISCIPLINE.to_owned()),
+            temperature: Temperature::default(),
         }
     }
 }
@@ -100,6 +103,19 @@ impl<H: Harness> HarnessModelBuilder<H> {
         self
     }
 
+    /// What to do with a temperature the agent cannot apply. The default refuses;
+    /// [`Temperature::FromTheAgent`] runs anyway and takes the agent's own variation
+    /// in its place, which is what lets the retry-shaped modules — `BestOfN`,
+    /// `Refine`, a multi-round `BootstrapFewShot`, `InferRules`, `SIMBA` and
+    /// `MIPROv2`'s proposers — run over an agent at all.
+    ///
+    /// `COPRO` stays refused either way: it asks for several completions from one
+    /// call, and an agent answers once.
+    pub fn temperature(mut self, temperature: Temperature) -> Self {
+        self.settings.temperature = temperature;
+        self
+    }
+
     /// Replace the standing [`MARKER_DISCIPLINE`]. Blank sends only what the request's
     /// own system messages say.
     pub fn instructions(mut self, text: impl Into<String>) -> Self {
@@ -114,12 +130,29 @@ impl<H: Harness> HarnessModelBuilder<H> {
     /// `Features::withheld_tools`, and a model asking for [`ToolAccess::None`] on it would
     /// be refused at every call. Refused here instead, where the caller can still choose
     /// `.tools(ToolAccess::Default)` and run the agent as a module.
+    ///
+    /// The tool-bearing path is refused on the mirror of that. Instructions reach a
+    /// tool-bearing run as `RunTuning::extra_instructions`, which an adapter honours only
+    /// where `Features::custom_instructions` says so — ACP does not. Dropping them drops
+    /// [`MARKER_DISCIPLINE`] and the request's own system messages, and what surfaces is
+    /// not a missing setting but a reply dsrust cannot parse: a `ReActV2` loop records
+    /// `termination_reason: "parse_error"` and no answer at all.
     pub fn build(self) -> Result<HarnessModel<H>> {
-        if self.settings.tools == ToolAccess::None && !self.harness.features().withheld_tools {
+        let features = self.harness.features();
+        let name = self.harness.info().display_name;
+        if self.settings.tools == ToolAccess::None && !features.withheld_tools {
             bail!(
-                "{} cannot withhold its tools, so it cannot run as a model under ToolAccess::None; \
-                 build it with `.tools(ToolAccess::Default)` and it runs as an agent instead",
-                self.harness.info().display_name
+                "{name} cannot withhold its tools, so it cannot run as a model under \
+                 ToolAccess::None; build it with `.tools(ToolAccess::Default)` and it runs as \
+                 an agent instead"
+            );
+        }
+        if self.settings.tools != ToolAccess::None && !features.custom_instructions {
+            bail!(
+                "{name} ignores extra instructions, so neither the marker discipline nor the \
+                 request's own system messages would reach it, and its replies would not \
+                 parse; run it under ToolAccess::None, or use an adapter that advertises \
+                 custom instructions"
             );
         }
         Ok(HarnessModel::from_parts(self.harness, self.settings))

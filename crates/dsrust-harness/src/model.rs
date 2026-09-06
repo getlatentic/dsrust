@@ -9,7 +9,7 @@ use dsrust::lm::api::{LmRequest, LmResponse};
 use harness::{Harness, RunHandle, RunMode, RunRequest, RunTuning, ToolAccess};
 
 use crate::builder::{HarnessModelBuilder, Settings};
-use crate::{collect, prompt};
+use crate::{capability, collect, prompt};
 
 /// Standing instructions every request carries, unless a caller replaces them.
 ///
@@ -71,7 +71,12 @@ impl<H: Harness> HarnessModel<H> {
         }
     }
 
-    fn run_request(&self, request: &LmRequest, rendered: prompt::Rendered) -> RunRequest {
+    /// This call as a run, or the reason the harness cannot serve it — see
+    /// [`capability`]. Refused before an agent is started rather than after, so a
+    /// knob that would have been dropped costs nothing.
+    fn run_request(&self, request: &LmRequest, rendered: prompt::Rendered) -> Result<RunRequest> {
+        capability::refuse_undeliverable(&request.config, self.settings.temperature)?;
+        let effort = capability::effort_for(&request.config, &self.harness.features())?;
         let n = self.calls.fetch_add(1, Ordering::Relaxed);
         // The instructions — the standing ones and the request's own system
         // messages — are the whole system prompt when the agent is being a model
@@ -87,7 +92,7 @@ impl<H: Harness> HarnessModel<H> {
             ToolAccess::None => (instructions, None),
             _ => (None, instructions),
         };
-        RunRequest {
+        Ok(RunRequest {
             run_id: format!("dsrust-{}-{n}", std::process::id()),
             prompt: rendered.prompt,
             attachments: rendered.attachments,
@@ -97,14 +102,15 @@ impl<H: Harness> HarnessModel<H> {
             tuning: RunTuning {
                 model: settings.model.clone().or_else(|| nonblank(&request.model)),
                 max_turns: settings.max_turns,
-                max_thinking_tokens: settings.max_thinking_tokens,
+                effort,
+                max_thinking_tokens: thinking_cap(request, settings),
                 output_schema: request.output_schema().cloned(),
                 system_prompt,
                 extra_instructions,
                 ..RunTuning::default()
             },
             resume: None,
-        }
+        })
     }
 }
 
@@ -114,18 +120,19 @@ impl<H: Harness + 'static> ChatModel for HarnessModel<H> {
         request: &'a LmRequest,
     ) -> impl Future<Output = Result<LmResponse>> + Send + 'a {
         let rendered = prompt::render(request);
-        let run = self.run_request(request, rendered);
-        let model = run.tuning.model.clone();
         // The run starts here, not on first poll, so the guard is built here too:
         // a future dropped before it is ever polled has still started an agent,
         // and that agent must stop.
-        let started = self
-            .harness
-            .run(run)
-            .map(|(handle, events)| (CancelOnDrop(handle), events))
-            .context("the agent could not be started");
+        let started = self.run_request(request, rendered).and_then(|run| {
+            let model = run.tuning.model.clone();
+            let (handle, events) = self
+                .harness
+                .run(run)
+                .context("the agent could not be started")?;
+            Ok((CancelOnDrop(handle), events, model))
+        });
         async move {
-            let (_cancel, events) = started?;
+            let (_cancel, events, model) = started?;
             // The run is on threads of its own and answers over a channel. Draining
             // it on one more thread, and awaiting a one-shot, keeps this future
             // free of any particular runtime.
@@ -149,6 +156,25 @@ impl Drop for CancelOnDrop {
     fn drop(&mut self) {
         let _ = self.0.cancel();
     }
+}
+
+/// The thinking cap this call runs under.
+///
+/// `reasoning.max_tokens` reaches `RunTuning::max_thinking_tokens`, and a call
+/// that names one beats the model built with one — dspy's order, where per-call
+/// kwargs win over `lm.kwargs`.
+///
+/// The only knob here carried without a capability behind it: the harness has the
+/// field but no `Features` flag saying who honours it, so on the openai-compatible
+/// runtime and ACP it is dropped and nothing advertises that. Raised upstream; when
+/// the flag lands this gets the same treatment as an effort.
+fn thinking_cap(request: &LmRequest, settings: &Settings) -> Option<u32> {
+    request
+        .config
+        .reasoning
+        .as_ref()
+        .and_then(|reasoning| reasoning.max_tokens)
+        .or(settings.max_thinking_tokens)
 }
 
 fn nonblank(text: &str) -> Option<String> {

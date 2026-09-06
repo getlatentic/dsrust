@@ -478,6 +478,48 @@ reply is data, not prose a parser rescued. A harness that cannot withhold its to
 says so through its features, and `build` refuses it under that default rather than every call
 failing.
 
+An agent has no sampling knobs, so a call that names one is refused rather than answered as though
+it had applied — a `BestOfN` that reported sampling at 1.0 over a CLI would be claiming something
+it did not do. dspy's retry-shaped modules re-ask with `Sampling::rollout`, which is
+`temperature: 1.0` and a fresh rollout id, so those are turned away at the first configured call:
+
+| refused over an agent | what it names |
+| --- | --- |
+| `BestOfN`, `Refine` | each attempt after the first is a rollout |
+| `BootstrapFewShot` with `max_rounds > 1` | round two onward is a rollout |
+| `InferRules` | one call at temperature one with a fresh rollout id |
+| `SIMBA`, `COPRO`, `MIPROv2`'s proposers | propose at a named temperature |
+
+| runs unchanged | |
+| --- | --- |
+| `Predict`, `ChainOfThought`, `ReActV2` | name no sampling of their own |
+| `Evaluate`, single-round `BootstrapFewShot` | the same |
+| `GEPA` | its reflection names none either — `gepa::Sampling` is minibatch selection, an unrelated type |
+
+Those refusals are the default rather than the last word. What a rollout wants is that attempt two
+differs from attempt one, and an agent does vary between runs — so a caller who has decided that
+variation is the variation they want says so once, and every row of the first table runs except the
+last:
+
+```rust
+use dsrust_harness::harness::Claude;
+use dsrust_harness::{HarnessModel, Temperature};
+
+let varies = HarnessModel::builder(Claude::new())
+    .temperature(Temperature::FromTheAgent)
+    .build()?;
+```
+
+The claim is then the caller's rather than the crate's, which is the point of spelling it: the
+agent varies by an amount nothing here can promise, so a `BestOfN` may draw three near-identical
+candidates and still look like it worked. `COPRO` stays refused either way — it asks for several
+completions from one call, and an agent answers once.
+
+The error names the knob and arrives before an agent is started, so a refused optimizer costs no
+tokens. It is a statement about knobs and nothing else: an agent is also a poor task model for an
+optimizer for a reason no config carries — hundreds of calls at agent latency is days, not minutes.
+That `GEPA` *can* run over one is not advice that it should.
+
 The same roster a `ReActV2!` holds can be handed to the agent instead, as an MCP server that lives
 in your process — `tool_server` takes the `Vec<Box<dyn Tool>>` that `#[tool]` emits:
 

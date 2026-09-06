@@ -33,6 +33,7 @@
 //! tools, and still a predictor an optimizer can rewrite.
 
 mod builder;
+mod capability;
 mod collect;
 mod model;
 mod prompt;
@@ -45,5 +46,6 @@ pub mod tools;
 pub use harness;
 
 pub use builder::HarnessModelBuilder;
+pub use capability::Temperature;
 pub use model::{HarnessModel, MARKER_DISCIPLINE};
 pub use tools::{read_only_tool_server, tool_server};

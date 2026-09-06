@@ -4,11 +4,11 @@
 use std::sync::{Arc, Mutex};
 
 use dsrust::lm::ChatModel;
-use dsrust::lm::api::{LmMessage, LmRequest};
-use dsrust_harness::{HarnessModel, MARKER_DISCIPLINE};
+use dsrust::lm::api::{LmMessage, LmReasoningConfig, LmRequest};
+use dsrust_harness::{HarnessModel, MARKER_DISCIPLINE, Temperature};
 use harness::{
-    CredentialSpec, Error, Features, Harness, Info, Readiness, RunCallback, RunControl, RunEvent,
-    RunHandle, RunRequest, ToolAccess,
+    CredentialSpec, Error, Features, Harness, Info, Readiness, ReasoningEffort, RunCallback,
+    RunControl, RunEvent, RunHandle, RunRequest, ToolAccess,
 };
 use serde_json::json;
 
@@ -17,7 +17,7 @@ struct Scripted {
     events: Vec<RunEvent>,
     seen: Arc<Mutex<Vec<RunRequest>>>,
     cancelled: Arc<Mutex<bool>>,
-    withholds_tools: bool,
+    features: Features,
 }
 
 struct Control(Arc<Mutex<bool>>);
@@ -41,10 +41,7 @@ impl Harness for Scripted {
         }
     }
     fn features(&self) -> Features {
-        Features {
-            withheld_tools: self.withholds_tools,
-            ..Features::default()
-        }
+        self.features.clone()
     }
     fn readiness(&self) -> Readiness {
         unreachable!("not exercised")
@@ -77,7 +74,10 @@ fn answering(text: &str) -> (Scripted, Arc<Mutex<Vec<RunRequest>>>) {
         ],
         seen: Arc::clone(&seen),
         cancelled: Arc::default(),
-        withholds_tools: true,
+        features: Features {
+            withheld_tools: true,
+            ..Features::default()
+        },
     };
     (harness, seen)
 }
@@ -180,8 +180,17 @@ async fn instructions_can_be_replaced_or_removed() {
 #[tokio::test]
 async fn as_an_agent_the_instructions_are_added_beside_the_agents_own_prompt() {
     // With tools, the agent needs its own prompt to drive them; ours rides as
-    // an addition, and a thinking cap travels as given.
-    let (harness, seen) = answering("x");
+    // an addition, and a thinking cap travels as given. The adapter has to
+    // advertise that it takes them, or `build` turns it away — an agent that
+    // discards the addition is one whose replies do not parse.
+    let (harness, seen) = advertising(
+        Features {
+            withheld_tools: true,
+            custom_instructions: true,
+            ..Features::default()
+        },
+        "x",
+    );
     let model = HarnessModel::builder(harness)
         .tools(ToolAccess::Default)
         .max_thinking_tokens(0)
@@ -223,7 +232,10 @@ async fn a_failed_run_is_an_error_the_caller_can_read() {
         ],
         seen: Arc::default(),
         cancelled: Arc::default(),
-        withholds_tools: true,
+        features: Features {
+            withheld_tools: true,
+            ..Features::default()
+        },
     };
     let err = HarnessModel::new(harness)
         .unwrap()
@@ -339,11 +351,16 @@ fn a_harness_that_cannot_withhold_its_tools_is_refused_at_build_not_at_the_first
     // Codex and ACP cannot un-offer their tools; `Features::withheld_tools` says so.
     // A model over one of them would fail every `forward`, so `build` is where it
     // is turned away — and where `.tools(ToolAccess::Default)` is still a choice.
+    // Codex-shaped: it takes instructions even though it cannot withhold tools.
     let cannot = || Scripted {
         events: Vec::new(),
         seen: Arc::default(),
         cancelled: Arc::default(),
-        withholds_tools: false,
+        features: Features {
+            withheld_tools: false,
+            custom_instructions: true,
+            ..Features::default()
+        },
     };
     let Err(refused) = HarnessModel::new(cannot()) else {
         panic!("a harness that cannot withhold its tools was accepted as a model");
@@ -365,4 +382,195 @@ fn a_harness_that_cannot_withhold_its_tools_is_refused_at_build_not_at_the_first
             .is_ok(),
         "as an agent it is fine"
     );
+}
+
+/// A harness advertising exactly these features, answering with `text`.
+fn advertising(features: Features, text: &str) -> (Scripted, Arc<Mutex<Vec<RunRequest>>>) {
+    let (mut harness, seen) = answering(text);
+    harness.features = features;
+    (harness, seen)
+}
+
+#[test]
+fn an_adapter_that_ignores_instructions_cannot_run_as_an_agent() {
+    // ACP honours neither `system_prompt` nor `extra_instructions`. Under
+    // `ToolAccess::Default` the marker discipline travels as the latter, so a run
+    // there is one whose reply dsrust cannot parse — and the parse failure names a
+    // field, never the setting that went missing. Refused where the cause is legible.
+    let acp = || {
+        advertising(
+            Features {
+                withheld_tools: false,
+                custom_instructions: false,
+                ..Features::default()
+            },
+            "",
+        )
+        .0
+    };
+    let Err(refused) = HarnessModel::builder(acp())
+        .tools(ToolAccess::Default)
+        .build()
+    else {
+        panic!("an adapter that drops the marker discipline was accepted as an agent");
+    };
+    let refused = refused.to_string();
+    assert!(refused.contains("Scripted"), "names the harness: {refused}");
+    assert!(
+        refused.contains("marker discipline"),
+        "and what would be lost: {refused}"
+    );
+}
+
+#[tokio::test]
+async fn a_sampling_knob_is_refused_by_name_rather_than_answered_as_though_it_applied() {
+    // The failure this prevents is not an error but a number: a judge pinned to 0.0
+    // that quietly samples scores one program differently on each run.
+    let (harness, seen) = answering("[[ ## answer ## ]]\n4");
+    let model = HarnessModel::new(harness).unwrap();
+    let mut request = ask(vec![LmMessage::user(["2+2?"])]);
+    request.config.temperature = Some(0.0);
+
+    let refused = model.forward(&request).await.unwrap_err().to_string();
+    assert!(
+        refused.contains("temperature"),
+        "names the knob it cannot honour: {refused}"
+    );
+    assert!(
+        seen.lock().unwrap().is_empty(),
+        "and refuses before an agent is ever started"
+    );
+}
+
+#[tokio::test]
+async fn a_reasoning_effort_travels_where_the_adapter_advertises_one() {
+    // The mirror of the refusals: the honour clause pinned, so a later tightening
+    // cannot quietly swallow a knob that does have a destination.
+    let (harness, seen) = advertising(
+        Features {
+            withheld_tools: true,
+            effort: true,
+            ..Features::default()
+        },
+        "[[ ## answer ## ]]\n4",
+    );
+    let model = HarnessModel::new(harness).unwrap();
+    let mut request = ask(vec![LmMessage::user(["2+2?"])]);
+    request.config.reasoning = Some(LmReasoningConfig {
+        effort: Some("medium".into()),
+        ..LmReasoningConfig::default()
+    });
+
+    model.forward(&request).await.unwrap();
+    assert_eq!(
+        seen.lock().unwrap()[0].tuning.effort,
+        Some(ReasoningEffort::Medium)
+    );
+}
+
+#[tokio::test]
+async fn an_effort_the_harness_cannot_spell_is_refused_rather_than_rounded() {
+    // dsrust's effort is free text and `RunTuning::effort` is four variants, so the
+    // tempting bug is to round. Rounding answers a question nobody asked, and the
+    // caller never learns their setting was approximated.
+    let (harness, _) = advertising(
+        Features {
+            withheld_tools: true,
+            effort: true,
+            ..Features::default()
+        },
+        "",
+    );
+    let model = HarnessModel::new(harness).unwrap();
+    let mut request = ask(vec![LmMessage::user(["2+2?"])]);
+    request.config.reasoning = Some(LmReasoningConfig {
+        effort: Some("xhigh".into()),
+        ..LmReasoningConfig::default()
+    });
+
+    let refused = model.forward(&request).await.unwrap_err().to_string();
+    assert!(refused.contains("xhigh"), "names the value: {refused}");
+    assert!(refused.contains("high"), "and what it does take: {refused}");
+}
+
+#[tokio::test]
+async fn an_effort_is_refused_where_the_adapter_has_nowhere_to_put_it() {
+    // Claude Code has no effort flag, so `Features::effort` is false there. Sending
+    // it anyway is the silent drop; the caller hears about it instead.
+    let (harness, _) = answering("");
+    let model = HarnessModel::new(harness).unwrap();
+    let mut request = ask(vec![LmMessage::user(["2+2?"])]);
+    request.config.reasoning = Some(LmReasoningConfig {
+        effort: Some("high".into()),
+        ..LmReasoningConfig::default()
+    });
+
+    let refused = model.forward(&request).await.unwrap_err().to_string();
+    assert!(
+        refused.contains("reasoning effort"),
+        "names the knob: {refused}"
+    );
+}
+
+#[tokio::test]
+async fn a_knob_that_is_not_a_sampling_one_is_refused_on_the_same_terms() {
+    // `extensions` is a map rather than an option, so it needs its own reading of
+    // "the caller asked" — an empty one is nobody asking.
+    let (harness, _) = answering("");
+    let model = HarnessModel::new(harness).unwrap();
+    let mut request = ask(vec![LmMessage::user(["q"])]);
+    request
+        .config
+        .extensions
+        .insert("service_tier".into(), json!("flex"));
+
+    let refused = model.forward(&request).await.unwrap_err().to_string();
+    assert!(refused.contains("extensions"), "names the knob: {refused}");
+}
+
+#[tokio::test]
+async fn a_rollout_runs_when_the_caller_takes_the_agents_own_variation() {
+    // `Sampling::rollout` is temperature 1.0 and a fresh id — how every retry-shaped
+    // module makes attempt two differ. Refused by default; opted into by name, the
+    // agent's own variation stands in and `BestOfN` and `Refine` can run at all.
+    let (harness, seen) = answering("[[ ## answer ## ]]\n4");
+    let model = HarnessModel::builder(harness)
+        .temperature(Temperature::FromTheAgent)
+        .build()
+        .unwrap();
+    let mut request = ask(vec![LmMessage::user(["2+2?"])]);
+    request.config.temperature = Some(1.0);
+
+    model.forward(&request).await.unwrap();
+    assert_eq!(
+        seen.lock().unwrap().len(),
+        1,
+        "the run started rather than being turned away"
+    );
+}
+
+#[tokio::test]
+async fn the_opt_in_does_not_reach_a_knob_the_agent_cannot_stand_in_for() {
+    // COPRO asks for several completions from one call. An agent answers once, so
+    // tolerating that would hand it one proposal where it asked for ten — which no
+    // amount of run-to-run variation substitutes for.
+    let (harness, seen) = answering("");
+    let model = HarnessModel::builder(harness)
+        .temperature(Temperature::FromTheAgent)
+        .build()
+        .unwrap();
+    let mut request = ask(vec![LmMessage::user(["q"])]);
+    request.config.temperature = Some(0.7);
+    request.config.n = Some(10);
+
+    let refused = model.forward(&request).await.unwrap_err().to_string();
+    assert!(
+        refused.contains("n"),
+        "still names the completions: {refused}"
+    );
+    assert!(
+        !refused.contains("temperature"),
+        "but not the knob that was opted into: {refused}"
+    );
+    assert!(seen.lock().unwrap().is_empty());
 }
