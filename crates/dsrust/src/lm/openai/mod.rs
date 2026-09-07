@@ -416,15 +416,32 @@ mod tests {
         );
     }
 
+    /// Every route off the base URL, not just the chat one: the trailing-slash rule is shared, so
+    /// a test holding one of three left the other two free to answer anything.
     #[test]
     fn a_trailing_slash_on_the_base_url_names_the_same_route() {
+        let hosted = "http://localhost:1234/v1/";
         assert_eq!(
-            chat_completions_url("http://localhost:1234/v1/"),
+            chat_completions_url(hosted),
             "http://localhost:1234/v1/chat/completions"
         );
         assert_eq!(
+            completions_url(hosted),
+            "http://localhost:1234/v1/completions"
+        );
+        assert_eq!(responses_url(hosted), "http://localhost:1234/v1/responses");
+
+        assert_eq!(
             chat_completions_url(DEFAULT_OPENAI_BASE_URL),
             "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            completions_url(DEFAULT_OPENAI_BASE_URL),
+            "https://api.openai.com/v1/completions"
+        );
+        assert_eq!(
+            responses_url(DEFAULT_OPENAI_BASE_URL),
+            "https://api.openai.com/v1/responses"
         );
     }
 

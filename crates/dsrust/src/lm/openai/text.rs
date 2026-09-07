@@ -227,6 +227,106 @@ mod tests {
         }
     }
 
+    /// The reply half of this endpoint had no test at all: `text_completion_conformance` holds the
+    /// prompt against a golden and the cases below hold the rendering, so `reply` answering
+    /// `Ok(Default::default())` — an empty response for every call — survived mutation.
+    #[test]
+    fn a_completion_becomes_its_choices_with_the_usage_and_ids_beside_them() {
+        let body = serde_json::json!({
+            "id": "cmpl-7",
+            "model": "gpt-3.5-turbo-instruct",
+            "choices": [
+                { "text": "Paris", "finish_reason": "stop" },
+                { "text": "Lyon", "finish_reason": "length" },
+            ],
+            "usage": { "prompt_tokens": 11, "completion_tokens": 3, "total_tokens": 14 },
+        });
+
+        let answered = reply(
+            "openai",
+            "gpt-3.5-turbo-instruct",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &body,
+        )
+        .expect("a successful completion");
+
+        assert_eq!(answered.outputs.len(), 2, "one output per choice");
+        assert_eq!(answered.outputs[0].parts[0].as_text(), Some("Paris"));
+        assert_eq!(answered.outputs[0].finish_reason.as_deref(), Some("stop"));
+        assert_eq!(answered.outputs[1].finish_reason.as_deref(), Some("length"));
+        assert_eq!(answered.response_id.as_deref(), Some("cmpl-7"));
+        assert_eq!(answered.model.as_deref(), Some("gpt-3.5-turbo-instruct"));
+        let spent = answered.usage.expect("the usage block crossed");
+        assert_eq!(spent.input_tokens, Some(11));
+        assert_eq!(spent.output_tokens, Some(3));
+    }
+
+    /// The status check, which `delete !` inverted and nothing noticed: a 4xx must not be read as
+    /// a completion, and a 200 must not be read as a failure.
+    #[test]
+    fn a_failed_status_is_an_error_and_a_successful_one_is_not() {
+        let refused = reply(
+            "openai",
+            "gpt-3.5-turbo-instruct",
+            reqwest::StatusCode::TOO_MANY_REQUESTS,
+            &reqwest::header::HeaderMap::new(),
+            &serde_json::json!({ "error": { "message": "slow down" } }),
+        )
+        .expect_err("a 429 is not a completion");
+        assert!(format!("{refused:#}").contains("slow down"), "{refused:#}");
+
+        let empty = reply(
+            "openai",
+            "gpt-3.5-turbo-instruct",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &serde_json::json!({ "choices": [] }),
+        )
+        .expect_err("a 200 with no choices is still nothing to answer with");
+        assert!(
+            format!("{empty:#}").contains("returned no content"),
+            "{empty:#}"
+        );
+    }
+
+    /// `stream` is what separates this body from the one the conformance golden holds.
+    #[test]
+    fn the_streaming_body_is_the_request_with_stream_set() {
+        let call = api::LmRequest::new("gpt-3.5-turbo-instruct", vec![user("where?")]);
+        let body = streaming_body("gpt-3.5-turbo-instruct", &call).expect("a body");
+        assert_eq!(body["stream"], serde_json::json!(true));
+        assert!(body["prompt"].is_string(), "the prompt survived: {body}");
+    }
+
+    /// The frame reader, whose `[DONE]` comparison flipped to `!=` and whose empty-text guard was
+    /// deleted, both without a failure.
+    #[test]
+    fn a_frame_yields_its_text_and_the_sentinel_closes_the_stream() {
+        let mut state = crate::lm::streaming::StreamState::default();
+
+        let spoken = frame(
+            r#"data: {"choices":[{"index":0,"text":"Par"}]}"#,
+            &mut state,
+        );
+        assert!(!spoken.done, "an ordinary chunk does not end the stream");
+        assert_eq!(spoken.events.len(), 1, "one delta for one choice");
+
+        let closed = frame("data: [DONE]", &mut state);
+        assert!(closed.done, "the sentinel closes it");
+        assert!(closed.events.is_empty(), "and carries nothing of its own");
+
+        let empty = frame(r#"data: {"choices":[{"index":0,"text":""}]}"#, &mut state);
+        assert!(
+            empty.events.is_empty(),
+            "an empty text is not a delta: {:?}",
+            empty.events
+        );
+
+        let unrelated = frame("event: ping", &mut state);
+        assert!(unrelated.events.is_empty() && !unrelated.done);
+    }
+
     /// This endpoint carries text and nothing else, and upstream refuses a part that is not — in
     /// those words, naming the Python class, since a caller matching the sentence is matching
     /// dspy's.
