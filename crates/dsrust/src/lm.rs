@@ -107,6 +107,21 @@ pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(6000);
 /// ```
 pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
 
+/// Where Anthropic's messages API lives, and what `ANTHROPIC_API_BASE` replaces.
+///
+/// litellm resolves `api_base or ANTHROPIC_API_BASE or ANTHROPIC_BASE_URL` and falls back to this,
+/// so a program pointed at a gateway through the environment reaches it here too.
+/// ```
+/// // What `LmBuilder::anthropic_base` starts from, so a caller can compare against it rather
+/// // than repeating the literal — an Anthropic-compatible gateway is named as its own origin
+/// // and the messages route is appended to it.
+/// assert_eq!(
+///     dsrust::lm::DEFAULT_ANTHROPIC_BASE,
+///     "https://api.anthropic.com/v1/messages"
+/// );
+/// ```
+pub const DEFAULT_ANTHROPIC_BASE: &str = "https://api.anthropic.com/v1/messages";
+
 /// One configured language model: a model reference plus the credentials and hosts its
 /// provider needs.
 ///
@@ -128,6 +143,10 @@ pub struct LM {
     pub anthropic_api_key: Option<String>,
     pub openrouter_api_key: Option<String>,
     pub ollama_host: String,
+    /// Where Anthropic's messages API is reached, from `ANTHROPIC_API_BASE` or
+    /// `ANTHROPIC_BASE_URL`. A base that does not already name the route gets `/v1/messages`
+    /// appended, which is litellm's rule.
+    pub anthropic_base: String,
     /// The credential a hosted ollama wants, from OLLAMA_API_KEY. A server on the local machine
     /// wants none, so this is normally unset.
     pub ollama_api_key: Option<String>,
@@ -180,6 +199,9 @@ impl LM {
             anthropic_api_key: env_nonempty("ANTHROPIC_API_KEY"),
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),
+            anthropic_base: env_nonempty("ANTHROPIC_API_BASE")
+                .or_else(|| env_nonempty("ANTHROPIC_BASE_URL"))
+                .unwrap_or_else(|| DEFAULT_ANTHROPIC_BASE.into()),
             ollama_api_key: env_nonempty("OLLAMA_API_KEY"),
             openai: OpenAiConfig::from_env(),
             cache: cfg!(feature = "process-global"),
@@ -296,6 +318,12 @@ impl LM {
 
     pub fn ollama_host(mut self, host: impl Into<String>) -> Self {
         self.ollama_host = host.into();
+        self
+    }
+
+    /// Where Anthropic's messages API is reached — a gateway, a proxy, a recorded double.
+    pub fn anthropic_base(mut self, base: impl Into<String>) -> Self {
+        self.anthropic_base = base.into();
         self
     }
 

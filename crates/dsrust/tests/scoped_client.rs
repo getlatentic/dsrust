@@ -67,10 +67,14 @@ fn named(agent: &str) -> reqwest::Client {
         .expect("client builds")
 }
 
+/// Uncached on purpose: this asserts *which client* made the call, and a reply the cache answers
+/// with is a call nobody made. The base URL belongs to the model rather than the request, so the
+/// two LMs below share a cache key despite pointing at the same stub through different clients.
 fn asking(host: &str) -> LM {
     LM::new("ollama/probe")
         .expect("valid model ref")
         .ollama_host(host)
+        .cache(false)
 }
 
 #[tokio::test]

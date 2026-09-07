@@ -122,26 +122,35 @@ fn openai_responses_reply() -> String {
 }
 
 /// The four routes a slow server can be put in front of, each built against one.
+/// The four routes, none of them cached.
+///
+/// The reply cache keys on the request, and a base URL belongs to the *model* here rather than the
+/// request — so it never reaches the key. Two of these differ only by the host they point at, and
+/// a reply cached under `ollama_chat/slow-model` from any earlier run would be replayed for all of
+/// them, answering instantly and defeating every bound this file asserts.
 fn routes(stub: &Slow) -> Vec<(&'static str, LM)> {
     vec![
         (
             "ollama_chat",
             LM::new("ollama_chat/slow-model")
                 .expect("a valid reference")
-                .ollama_host(&stub.address),
+                .ollama_host(&stub.address)
+                .cache(false),
         ),
         (
             "ollama",
             LM::new("ollama/slow-model")
                 .expect("a valid reference")
-                .ollama_host(&stub.address),
+                .ollama_host(&stub.address)
+                .cache(false),
         ),
         (
             "openai chat",
             LM::new("openai/slow-model")
                 .expect("a valid reference")
                 .openai_base_url(stub.base_url())
-                .openai_api_key("stub"),
+                .openai_api_key("stub")
+                .cache(false),
         ),
         (
             "openai responses",
@@ -149,7 +158,8 @@ fn routes(stub: &Slow) -> Vec<(&'static str, LM)> {
                 .expect("a valid reference")
                 .openai_base_url(stub.base_url())
                 .openai_api_key("stub")
-                .openai_responses_api(),
+                .openai_responses_api()
+                .cache(false),
         ),
     ]
 }

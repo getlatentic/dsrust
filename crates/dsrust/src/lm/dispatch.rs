@@ -139,6 +139,7 @@ impl LM {
                 http,
                 &self.model.id,
                 self.anthropic_api_key.as_deref(),
+                &self.anthropic_base,
                 self.timeout,
                 request,
             )),
@@ -204,6 +205,7 @@ impl LM {
                 anthropic::Anthropic {
                     model: &self.model.id,
                     api_key: self.anthropic_api_key.as_deref(),
+                    base: &self.anthropic_base,
                     timeout: self.timeout,
                 }
                 .forward(request)

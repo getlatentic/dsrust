@@ -131,6 +131,14 @@ impl LmBuilder {
         self
     }
 
+    /// Where Anthropic's messages API is reached. See [`LM::anthropic_base`].
+    pub fn anthropic_base(mut self, base: impl Into<String>) -> Self {
+        let base = base.into();
+        self.settings
+            .push(Box::new(move |lm| lm.anthropic_base(base)));
+        self
+    }
+
     /// How long one call may take before it is abandoned.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.settings.push(Box::new(move |lm| lm.timeout(timeout)));

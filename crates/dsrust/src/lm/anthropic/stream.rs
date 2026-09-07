@@ -22,13 +22,14 @@ pub(crate) fn stream(
     http: &reqwest::Client,
     model: &str,
     api_key: Option<&str>,
+    base: &str,
     timeout: Duration,
     call: &api::LmRequest,
 ) -> impl Stream<Item = Result<api::LmStreamEvent>> + crate::wasm_compat::WasmCompatSend + use<> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let mut request = http
-        .post(super::MESSAGES_URL)
+        .post(super::messages_url(base))
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
         .timeout(timeout)

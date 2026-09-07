@@ -1,5 +1,11 @@
 //! The process-wide LM global, exercised in its own test process: the global stores the
 //! concrete [`LM`], so a scripted model cannot stand in for it here. Instead the test drives
+//! Every LM here is built with `.cache(false)`. The reply cache lives in `~/.dsrs_cache` and
+//! outlives the run, so a cached answer for one of these model refs would be replayed instead of
+//! the connection being attempted — and a test asserting a *transport* failure would read a
+//! successful empty reply. It passed on a machine that had never cached one and failed on a
+//! machine that had.
+//!
 //! a typed `call` before any configure (the unconfigured error) and after pointing the
 //! global at an unroutable host (a provider error), proving resolution goes through the
 //! global. Both assertions live in one test fn because a sibling test configuring first
@@ -49,7 +55,8 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
         http,
         LM::new("ollama/whatever")
             .expect("valid model ref")
-            .ollama_host(UNROUTABLE_OLLAMA),
+            .ollama_host(UNROUTABLE_OLLAMA)
+            .cache(false),
     );
     let provider_error = ProbeTask::predict()
         .call_inputs(&inputs)
@@ -71,7 +78,8 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
     lm::configure(
         LM::new("ollama/reconfigured")
             .expect("valid model ref")
-            .ollama_host(UNROUTABLE_OLLAMA),
+            .ollama_host(UNROUTABLE_OLLAMA)
+            .cache(false),
     );
     let reconfigured = ProbeTask::chain_of_thought()
         .call_inputs(&inputs)

@@ -18,12 +18,24 @@ mod stream;
 
 pub(crate) use stream::stream;
 
-pub(super) const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
+/// The messages route off `base`, which litellm appends unless the base already names it.
+///
+/// A gateway is configured as its own origin — `https://gateway.internal` — and reached at
+/// `https://gateway.internal/v1/messages`; one configured with the full route is left alone, so
+/// both spellings of `ANTHROPIC_API_BASE` land on the same URL.
+pub(super) fn messages_url(base: &str) -> String {
+    let base = base.trim_end_matches('/');
+    if base.ends_with("/v1/messages") {
+        return base.to_owned();
+    }
+    format!("{base}/v1/messages")
+}
 
 /// Anthropic's messages API as a [`ChatModel`], the model and credential it needs held beside it.
 pub(crate) struct Anthropic<'a> {
     pub model: &'a str,
     pub api_key: Option<&'a str>,
+    pub base: &'a str,
     pub timeout: Duration,
 }
 
@@ -34,7 +46,7 @@ impl ChatModel for Anthropic<'_> {
             .api_key
             .ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
         let response = http
-            .post(MESSAGES_URL)
+            .post(messages_url(self.base))
             .header("x-api-key", key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")
@@ -183,6 +195,146 @@ fn provider_data(body: &Value) -> Option<Value> {
 
 #[cfg(test)]
 mod tests {
+
+    /// The round trip itself, which nothing drove: `forward` answering `Ok(Default::default())`
+    /// — an empty response for every call — survived mutation, because every test here holds
+    /// `request` or `reply` in isolation and none of them joins the two.
+    ///
+    /// Bounded on both sides. A mutant that answers without calling out never connects, so an
+    /// unbounded accept or a bare `recv` would hang instead of failing.
+    #[tokio::test]
+    async fn a_call_reaches_the_configured_base_with_its_credential_and_reads_the_reply() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::net::{TcpListener, TcpStream};
+        use std::sync::mpsc;
+        use std::time::Instant;
+
+        const PATIENCE: Duration = Duration::from_secs(5);
+
+        struct Asked {
+            target: String,
+            key: Option<String>,
+            version: Option<String>,
+            body: Value,
+        }
+
+        fn read_request(stream: &mut TcpStream) -> Option<Asked> {
+            let mut reader = BufReader::new(stream);
+            let mut start = String::new();
+            reader.read_line(&mut start).ok()?;
+            let target = start.split_whitespace().nth(1)?.to_owned();
+            let (mut key, mut version, mut length) = (None, None, 0usize);
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).ok()? == 0 || line.trim_end().is_empty() {
+                    break;
+                }
+                let Some((name, value)) = line.split_once(':') else {
+                    continue;
+                };
+                match name.to_ascii_lowercase().as_str() {
+                    "x-api-key" => key = Some(value.trim().to_owned()),
+                    "anthropic-version" => version = Some(value.trim().to_owned()),
+                    "content-length" => length = value.trim().parse().unwrap_or(0),
+                    _ => {}
+                }
+            }
+            let mut raw = vec![0u8; length];
+            reader.read_exact(&mut raw).ok()?;
+            Some(Asked {
+                target,
+                key,
+                version,
+                body: serde_json::from_slice(&raw).unwrap_or(Value::Null),
+            })
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let address = format!("http://{}", listener.local_addr().expect("a bound address"));
+        listener.set_nonblocking(true).expect("a pollable listener");
+        let (seen, heard) = mpsc::channel();
+        let served = std::thread::spawn(move || {
+            let deadline = Instant::now() + PATIENCE;
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        stream.set_nonblocking(false).expect("a blocking stream");
+                        break stream;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        if Instant::now() >= deadline {
+                            return;
+                        }
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(_) => return,
+                }
+            };
+            if let Some(asked) = read_request(&mut stream) {
+                let _ = seen.send(asked);
+            }
+            let body = r#"{"id":"msg_1","model":"claude-x","content":[{"type":"text","text":"Paris"}],"stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":2}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = stream.write_all(response.as_bytes());
+            let _ = stream.flush();
+        });
+
+        let answered = Anthropic {
+            model: "claude-x",
+            api_key: Some("sk-ant-test"),
+            base: &address,
+            timeout: PATIENCE,
+        }
+        .forward(&api::LmRequest::new(
+            "claude-x",
+            vec![api::LmMessage::user([api::LmPart::text("where?")])],
+        ))
+        .await
+        .expect("the endpoint answered");
+
+        assert_eq!(answered.first_text(), "Paris");
+        assert_eq!(answered.model.as_deref(), Some("claude-x"));
+        // No `response_id`: litellm's normalised response invents a random one for Anthropic
+        // rather than carrying `msg_…`, so there is no upstream value to be faithful to.
+        assert_eq!(answered.response_id, None);
+        let spent = answered.usage.expect("the usage block crossed");
+        assert_eq!(spent.input_tokens, Some(7));
+        assert_eq!(spent.output_tokens, Some(2));
+
+        let asked = heard
+            .recv_timeout(PATIENCE)
+            .expect("the endpoint was actually called");
+        let _ = served.join();
+        assert_eq!(asked.target, "/v1/messages", "the route it posts to");
+        assert_eq!(asked.key.as_deref(), Some("sk-ant-test"));
+        assert_eq!(asked.version.as_deref(), Some("2023-06-01"));
+        assert_eq!(asked.body["model"], serde_json::json!("claude-x"));
+    }
+
+    /// litellm's rule, both spellings: a gateway named as an origin gets the route appended, and
+    /// one named with the route already on it is left alone.
+    #[test]
+    fn a_base_that_does_not_name_the_route_gets_it_appended() {
+        assert_eq!(
+            messages_url("https://gateway.internal"),
+            "https://gateway.internal/v1/messages"
+        );
+        assert_eq!(
+            messages_url("https://gateway.internal/"),
+            "https://gateway.internal/v1/messages"
+        );
+        assert_eq!(
+            messages_url("https://gateway.internal/v1/messages"),
+            "https://gateway.internal/v1/messages"
+        );
+        assert_eq!(
+            messages_url(crate::lm::DEFAULT_ANTHROPIC_BASE),
+            crate::lm::DEFAULT_ANTHROPIC_BASE
+        );
+    }
     use super::*;
 
     /// Anthropic's documented usage shape, composed the way its pricing composes: cache creation
