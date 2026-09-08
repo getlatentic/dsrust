@@ -610,6 +610,37 @@ mod code_sections {
         }
     }
 
+    /// The `union_takes_text` guard, which nothing reached through `section_value`: replacing it
+    /// with `false` sent a `str | None` field through json-repair and no test noticed.
+    ///
+    /// `42` is the case that separates the two paths. Upstream hands a union naming both `None`
+    /// and `str` to pydantic whole, so the text validates as the string it already is; repaired,
+    /// it would arrive as a number and a caller reading `as_str` would find nothing.
+    #[test]
+    fn a_union_naming_none_and_str_keeps_its_text_rather_than_being_repaired() {
+        for annotation in [
+            "UnionType[str, NoneType]",
+            "typing.Optional[str]",
+            "UnionType[NoneType, str]",
+        ] {
+            assert_eq!(
+                section_value(&code_field(annotation), "42"),
+                json!("42"),
+                "{annotation} takes the text as itself"
+            );
+        }
+    }
+
+    /// The other side of the same guard, so a mutant cannot pass by taking *every* field's text
+    /// as itself: a union without `str` is repaired, and `42` arrives as a number.
+    #[test]
+    fn a_union_without_str_is_repaired_into_its_type() {
+        assert_eq!(
+            section_value(&code_field("UnionType[int, NoneType]"), "42"),
+            json!(42)
+        );
+    }
+
     /// Recorded from `adapters/types/code.py`'s docstring example in dsrust-examples: dspy answers
     /// the Java line as code, where json-repair alone answers `[1, 9]`.
     #[test]

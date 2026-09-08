@@ -328,9 +328,24 @@ fi
 # improvement once (see the header), and it was also how this function went stale the first time —
 # the two-floor rework was written inline in the loop, this single-total version was left defined
 # and uncalled, and the adapter slice that only this could check silently stopped running.
+# A run that crashed has no survivors in its log, and zero survivors reads as a clean sweep. Two
+# of these sharing `mutants-build` deleted each other's tree mid-run; both logs held one error line
+# and both reported the ratchet holding. So the summary line is checked first: `cargo mutants`
+# writes "N mutants tested in ..." only after testing them, and its absence means the counts below
+# describe nothing.
+completed() {
+  grep -qE "^[0-9]+ mutants tested in " "$1"
+}
+
 check_floors() {
   local label="$1" allowed_missed="$2" allowed_hangs="$3" log="$4" status=0
   local missed hangs
+  if ! completed "$log"; then
+    echo "  RUN DID NOT COMPLETE ($label): no summary line in $log" >&2
+    tail -3 "$log" >&2
+    echo "  A crashed run has no survivors to count, which is not the same as having none." >&2
+    return 1
+  fi
   missed=$(grep -cE "^MISSED" "$log" || true)
   hangs=$(grep -cE "^TIMEOUT" "$log" || true)
   tail -1 "$log"
